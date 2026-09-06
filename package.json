@@ -1,6 +1,6 @@
 {
   "name": "osstrich",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Plan-to-PR upstream contribution workflow: discover what to give back, then build it to a merged pull request.",
   "type": "module",
   "bin": {

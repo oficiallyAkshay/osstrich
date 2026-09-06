@@ -3,7 +3,8 @@
 // and maps every thrown OsstrichError (or anything unexpected) to the exit
 // codes described in lib/errors.mjs.
 import os from 'node:os';
-import fs from 'node:fs';
+import fs, { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import * as prompts from '@clack/prompts';
 import { loadEnv } from '../lib/env.mjs';
@@ -77,7 +78,15 @@ export async function main(argv, deps) {
 }
 
 /* c8 ignore start -- exercised via the bin, not unit tests */
-if (import.meta.url === `file://${process.argv[1]}`) {
+function isMain() {
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1] ?? '');
+  } catch {
+    return false;
+  }
+}
+
+if (isMain()) {
   const deps = buildDeps();
   main(process.argv.slice(2), deps).then((code) => {
     process.exitCode = code;
