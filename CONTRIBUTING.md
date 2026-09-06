@@ -27,3 +27,7 @@ No contributor agreement. By opening a pull request you agree your contribution 
 ## Pull request shape
 
 Symptom, then root cause, then what changed, then what ran. Short beats thorough. If it relates to an existing PR or issue, say so and be kind about it.
+
+## Releases
+
+A merge never cuts a release. A release is cut on purpose, by pushing a version tag (`git tag -a v0.0.N && git push origin v0.0.N`); the tag-triggered workflow runs the tests, packs the package, and attaches it to the release. Versions stay in the 0.0.x series until the maintainer says otherwise.
