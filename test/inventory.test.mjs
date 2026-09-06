@@ -880,3 +880,80 @@ test("collectInventory: binary-pin reader ignores test paths", async () => {
 		ok("a .test.mjs filename is ignored even outside a test-named directory", !find(result.projects, "binary", "tool-f"));
 	}
 });
+
+// https://github.com/oficiallyAkshay/osstrich/issues/1 — a consumer that
+// installs or vendors osstrich must never inventory or rank itself.
+test("collectInventory: osstrich never inventories itself — dropped before the join, one self gap", async () => {
+	{
+		const repoRoot = mkdtempSync(path.join(tmpRoot, "self-exclude-"));
+		const w = (rel, content) => {
+			const abs = path.join(repoRoot, rel);
+			mkdirSync(path.dirname(abs), { recursive: true });
+			writeFileSync(abs, content);
+		};
+
+		// An npm row named "osstrich" — the manifest declares it, and the
+		// lock resolves a real version, so this row would otherwise look
+		// exactly like any other legitimately-tracked dependency.
+		w("package.json", JSON.stringify({ dependencies: { osstrich: "^0.1.0", "acme-real-dep": "^1.0.0" } }));
+		w(
+			"package-lock.json",
+			JSON.stringify({ packages: { "node_modules/osstrich": { version: "0.1.1" }, "node_modules/acme-real-dep": { version: "1.0.0" } } }),
+		);
+
+		// A vendored-copy header naming osstrich's own repo — the shape a
+		// bundled/vendored install of this tool would carry.
+		w("skill/osstrich-header.md", "Vendored from github.com/oficiallyAkshay/osstrich @ v0.1.1 (2026-09-06)\n");
+
+		// acme-real-dep is a genuine surviving npm row, so the registry queue
+		// still runs for it — a fast 404 stand-in, not neverCalled, since a
+		// throwing fetch would otherwise cost this test the real 500ms retry
+		// delay for no assertion benefit. No repo survives self-exclusion (the
+		// vendored row for osstrich itself is the only non-npm row), so the
+		// GitHub queue's own exec never runs at all.
+		async function fakeFetch() {
+			return { ok: false, status: 404 };
+		}
+		async function neverCalledExec() {
+			throw new Error("should never be called — no surviving row carries a repo");
+		}
+		const result = await collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: neverCalledExec, fetch: fakeFetch, now: () => 0 });
+
+		ok("the npm row named osstrich never surfaces", !find(result.projects, "npm", "osstrich"), JSON.stringify(result.projects));
+		ok("the vendored row for oficiallyAkshay/osstrich never surfaces", !result.projects.some((p) => p.repo === "oficiallyAkshay/osstrich"), JSON.stringify(result.projects));
+		ok("a real, unrelated dependency in the same repo still surfaces", Boolean(find(result.projects, "npm", "acme-real-dep")));
+
+		const selfGaps = result.gaps.filter((g) => g.source === "self");
+		ok("exactly one self gap for two dropped rows across two files", selfGaps.length === 1, JSON.stringify(result.gaps));
+		ok("the self gap explains why", selfGaps[0]?.error === "osstrich skipped its own package", JSON.stringify(selfGaps));
+		ok(
+			"the self gap names both files the dropped rows came from",
+			selfGaps[0]?.file?.includes("package.json") && selfGaps[0]?.file?.includes("skill/osstrich-header.md"),
+			JSON.stringify(selfGaps),
+		);
+	}
+});
+
+test("collectInventory: a repo that neither depends on nor vendors osstrich gets no self gap", async () => {
+	{
+		const repoRoot = mkdtempSync(path.join(tmpRoot, "no-self-"));
+		const w = (rel, content) => {
+			const abs = path.join(repoRoot, rel);
+			mkdirSync(path.dirname(abs), { recursive: true });
+			writeFileSync(abs, content);
+		};
+		w("package.json", JSON.stringify({ dependencies: { "acme-real-dep": "^1.0.0" } }));
+		w("package-lock.json", JSON.stringify({ packages: { "node_modules/acme-real-dep": { version: "1.0.0" } } }));
+
+		async function fakeFetch() {
+			return { ok: false, status: 404 };
+		}
+		async function neverCalledExec() {
+			throw new Error("should never be called — no row in this fixture carries a repo");
+		}
+		const result = await collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: neverCalledExec, fetch: fakeFetch, now: () => 0 });
+
+		ok("the real dependency surfaces", Boolean(find(result.projects, "npm", "acme-real-dep")));
+		ok("no self gap when nothing was dropped", !result.gaps.some((g) => g.source === "self"), JSON.stringify(result.gaps));
+	}
+});

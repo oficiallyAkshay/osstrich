@@ -23,6 +23,45 @@ test('loadConfig applies every built-in default when no file exists', () => {
   assert.deepEqual(config.agent, { command: null, model: null });
 });
 
+// The exact defect-1 string: a stateDir default embedding `${VAR:-~/...}`,
+// with the var unset, must resolve to an absolute path under homedir instead
+// of throwing "state dir must be absolute" on the literal `~/.openclaw/osstrich`.
+test('loadConfig resolves a ${VAR:-~/default} stateDir with the var unset', () => {
+  const fs = createFakeFs({
+    '/repo/.osstrich.json': JSON.stringify({ stateDir: '${OPENCLAW_STATE_DIR:-~/.openclaw}/osstrich' }),
+  });
+  const config = loadConfig({ repoRoot, fs, env: {}, homedir });
+  assert.equal(config.stateDir, '/home/tester/.openclaw/osstrich');
+});
+
+test('loadConfig resolves the same ${VAR:-~/default} stateDir when the var is set to an absolute path', () => {
+  const fs = createFakeFs({
+    '/repo/.osstrich.json': JSON.stringify({ stateDir: '${OPENCLAW_STATE_DIR:-~/.openclaw}/osstrich' }),
+  });
+  const config = loadConfig({ repoRoot, fs, env: { OPENCLAW_STATE_DIR: '/custom/state' }, homedir });
+  assert.equal(config.stateDir, '/custom/state/osstrich');
+});
+
+test('loadConfig resolves a bare ~ stateDir to homedir', () => {
+  const fs = createFakeFs({ '/repo/.osstrich.json': JSON.stringify({ stateDir: '~' }) });
+  const config = loadConfig({ repoRoot, fs, env: {}, homedir });
+  assert.equal(config.stateDir, homedir);
+});
+
+test('a classification/scrubTerms default containing ~ expands against homedir, not repoRoot', () => {
+  const fs = createFakeFs({
+    '/repo/.osstrich.json': JSON.stringify({
+      classification: '~/.osstrich/classification.md',
+      scrubTerms: '${OSSTRICH_SCRUB_DIR:-~/.osstrich}/scrub-terms.txt',
+    }),
+    '/home/tester/.osstrich/classification.md': '# classification',
+    '/home/tester/.osstrich/scrub-terms.txt': 'term\n',
+  });
+  const config = loadConfig({ repoRoot, fs, env: {}, homedir });
+  assert.equal(config.classification, '/home/tester/.osstrich/classification.md');
+  assert.equal(config.scrubTerms, '/home/tester/.osstrich/scrub-terms.txt');
+});
+
 test('OSSTRICH_STATE_DIR wins over the config file and the default', () => {
   const fs = createFakeFs({
     '/repo/.osstrich.json': JSON.stringify({ stateDir: '/wherever' }),
@@ -55,6 +94,22 @@ test('expandString expands ${VAR} and ${VAR:-default}', () => {
   assert.equal(expandString('${FOO}/x', { env, homedir }), 'bar/x');
   assert.equal(expandString('${MISSING:-fallback}', { env, homedir }), 'fallback');
   assert.equal(expandString('${MISSING}', { env, homedir }), '');
+});
+
+// Substitution must run BEFORE tilde expansion: a `${VAR:-default}` whose
+// default itself starts with `~` only produces a leading `~` once the var
+// substitutes to its default — expanding tilde first (on the raw string,
+// which doesn't start with `~`) would leave that `~` untouched and it would
+// survive as a literal character instead of the homedir.
+test('expandString expands a leading ~ that only appears after ${VAR:-default} substitution', () => {
+  assert.equal(
+    expandString('${OPENCLAW_STATE_DIR:-~/.openclaw}/osstrich', { env: {}, homedir }),
+    '/home/tester/.openclaw/osstrich',
+  );
+  assert.equal(
+    expandString('${OPENCLAW_STATE_DIR:-~/.openclaw}/osstrich', { env: { OPENCLAW_STATE_DIR: '/abs/state' }, homedir }),
+    '/abs/state/osstrich',
+  );
 });
 
 test('a relative default file path resolves to null when the file is absent, and to a path when present', () => {
