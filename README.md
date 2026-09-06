@@ -1,6 +1,6 @@
 # osstrich
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-black.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-black.svg)](LICENSE) ![Release downloads](https://img.shields.io/github/downloads/oficiallyAkshay/osstrich/total?label=release%20downloads&color=black) ![Forks](https://img.shields.io/github/forks/oficiallyAkshay/osstrich?style=flat&label=forks&color=black)
 
 The bird that takes its head out of the sand.
 
