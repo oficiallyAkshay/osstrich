@@ -1,6 +1,8 @@
 # osstrich
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-black.svg)](LICENSE) ![Human go required](https://img.shields.io/badge/every%20PR-human%20%22go%22%20required-black) ![No external agents](https://img.shields.io/badge/external%20agents-none-black) ![Last commit](https://img.shields.io/github/last-commit/oficiallyAkshay/osstrich?color=black) ![Stars](https://img.shields.io/github/stars/oficiallyAkshay/osstrich?style=flat&color=black)
+[![License: MIT](https://img.shields.io/badge/license-MIT-black.svg)](LICENSE)
+
+<p align="center"><img src="assets/osstrich.svg" width="420" alt="osstrich, the bird with the headlamp"></p>
 
 The bird that takes its head out of the sand.
 
@@ -15,8 +17,6 @@ You depend on a few hundred open-source projects. Some are tiny, tired, and one 
 A runbook for an AI coding agent plus a few deterministic scripts. Not a bot: every outward action waits for a human "go".
 
 ## How it thinks
-
-`code` = deterministic · `AI` = judgment · `human` = the only one who posts
 
 ### 1. Discover: what should we contribute?
 
@@ -153,11 +153,3 @@ A runbook for an AI coding agent plus a few deterministic scripts. Not a bot: ev
                                  v
                     the next run starts smarter
 ```
-
-## Status
-
-Extracted from a private repo where it shipped three upstream PRs. Sanitizing for public use; expect rough edges.
-
-## Name
-
-OSS + ostrich. Also OSS-t-rich: give back until the commons is rich.

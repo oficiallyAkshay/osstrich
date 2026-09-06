@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360" role="img" aria-label="osstrich: an ostrich wearing a miner's headlamp, head up, looking ahead">
+  <defs>
+    <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f4c542" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#f4c542" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- ground -->
+  <rect x="0" y="0" width="640" height="360" fill="#f6f1e7"/>
+  <path d="M0 300 Q160 288 320 300 T640 300 L640 360 L0 360 Z" fill="#e8dfcd"/>
+  <!-- headlamp beam, drawn first so the bird sits on top -->
+  <path d="M262 92 L610 40 L610 150 Z" fill="url(#beam)"/>
+  <!-- legs -->
+  <g stroke="#1b1b1b" stroke-width="10" stroke-linecap="round" fill="none">
+    <path d="M300 236 L292 296"/>
+    <path d="M336 236 L350 296"/>
+    <path d="M292 296 L272 306 M292 296 L296 312 M292 296 L310 304"/>
+    <path d="M350 296 L332 308 M350 296 L354 314 M350 296 L370 304"/>
+  </g>
+  <!-- body -->
+  <ellipse cx="318" cy="200" rx="86" ry="58" fill="#1b1b1b"/>
+  <!-- tail plumes -->
+  <path d="M238 176 C210 150 214 118 244 120 C222 140 236 160 258 168 Z" fill="#1b1b1b"/>
+  <path d="M244 200 C206 196 196 160 220 146 C212 172 232 186 262 186 Z" fill="#1b1b1b"/>
+  <!-- wing tuft -->
+  <path d="M286 178 C300 150 336 150 352 176 C334 168 304 168 286 178 Z" fill="#f6f1e7" opacity="0.9"/>
+  <!-- neck -->
+  <path d="M352 168 C372 130 322 96 300 84" stroke="#1b1b1b" stroke-width="22" stroke-linecap="round" fill="none"/>
+  <!-- head -->
+  <ellipse cx="288" cy="80" rx="34" ry="26" fill="#1b1b1b"/>
+  <!-- beak -->
+  <path d="M318 82 L352 90 L318 96 Z" fill="#f4c542"/>
+  <!-- eye -->
+  <circle cx="298" cy="76" r="6" fill="#f6f1e7"/>
+  <circle cx="300" cy="76" r="3" fill="#1b1b1b"/>
+  <!-- helmet -->
+  <path d="M254 70 C256 46 322 46 324 70 Z" fill="#f4c542"/>
+  <rect x="250" y="66" width="80" height="8" rx="4" fill="#d9a72a"/>
+  <!-- headlamp -->
+  <circle cx="262" cy="92" r="11" fill="#1b1b1b"/>
+  <circle cx="262" cy="92" r="6" fill="#fff4c2"/>
+  <!-- ground shadow -->
+  <ellipse cx="322" cy="304" rx="64" ry="8" fill="#1b1b1b" opacity="0.12"/>
+</svg>
