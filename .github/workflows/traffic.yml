@@ -1,0 +1,40 @@
+# Live clone counter. GitHub only keeps 14 days of traffic, so this job runs daily,
+# merges the new days into badges/clones.json (a running total), and commits the
+# file directly. The README badge reads that file on every view. No PR, no key:
+# the workflow's own token can read this repo's traffic and push to it.
+name: traffic
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  clones:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: merge the last 14 days into the running total
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/${{ github.repository }}/traffic/clones > /tmp/clones.json
+          node - <<'JS'
+          const fs = require("fs");
+          const fresh = JSON.parse(fs.readFileSync("/tmp/clones.json", "utf8"));
+          const path = "badges/clones.json";
+          const prev = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, "utf8")) : { days: {} };
+          const days = prev.days || {};
+          for (const d of fresh.clones || []) days[d.timestamp.slice(0, 10)] = { count: d.count, uniques: d.uniques };
+          const total = Object.values(days).reduce((a, d) => a + d.count, 0);
+          const uniques = Object.values(days).reduce((a, d) => a + d.uniques, 0);
+          const out = { total, uniques, last14: fresh.count || 0, updated: new Date().toISOString().slice(0, 10), days };
+          fs.writeFileSync(path, JSON.stringify(out, null, 2) + "\n");
+          JS
+      - name: commit if changed
+        run: |
+          git config user.name "osstrich-traffic[bot]"
+          git config user.email "osstrich-traffic@users.noreply.github.com"
+          git add badges/clones.json
+          git diff --cached --quiet || (git commit -m "badges: clone count $(date -u +%F)" && git push)

@@ -1,6 +1,6 @@
 # osstrich
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-black.svg)](LICENSE) ![Release downloads](https://img.shields.io/github/downloads/oficiallyAkshay/osstrich/total?label=release%20downloads&color=black) ![Forks](https://img.shields.io/github/forks/oficiallyAkshay/osstrich?style=flat&label=forks&color=black)
+[![License: MIT](https://img.shields.io/badge/license-MIT-black.svg)](LICENSE) ![Release downloads](https://img.shields.io/github/downloads/oficiallyAkshay/osstrich/total?label=release%20downloads&color=black) ![Forks](https://img.shields.io/github/forks/oficiallyAkshay/osstrich?style=flat&label=forks&color=black) ![Clones](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FoficiallyAkshay%2Fosstrich%2Fmain%2Fbadges%2Fclones.json&query=%24.total&label=clones&color=black) ![Unique cloners](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FoficiallyAkshay%2Fosstrich%2Fmain%2Fbadges%2Fclones.json&query=%24.uniques&label=unique%20cloners&color=black)
 
 The bird that takes its head out of the sand.
 
