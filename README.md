@@ -2,8 +2,6 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-black.svg)](LICENSE)
 
-<p align="center"><img src="assets/osstrich.svg" width="420" alt="osstrich, the bird with the headlamp"></p>
-
 The bird that takes its head out of the sand.
 
 You depend on a few hundred open-source projects. Some are tiny, tired, and one bug away from ruining your week. osstrich reads *your* repo, finds the libraries where your next step and their open issue are the same thing, and fixes it upstream the way the maintainer would have.
@@ -13,8 +11,6 @@ You depend on a few hundred open-source projects. Some are tiny, tired, and one 
 - **`osstrich discover`** — every project you run, least popular first, community before company, crossed against your backlog and workarounds. One table: fund, defer, skip.
 - **`osstrich build <repo | issue | patch>`** — their norms, the failing test first, the smallest fix, in their voice, with your name on it.
 - **The gate between them** — is there a way to use the library that makes the fix optional? Then the fix is a gift, not a chore.
-
-A runbook for an AI coding agent plus a few deterministic scripts. Not a bot: every outward action waits for a human "go".
 
 ## How it thinks
 
@@ -128,28 +124,16 @@ A runbook for an AI coding agent plus a few deterministic scripts. Not a bot: ev
 | symptom, cause, change, tests; rivals named fairly               |
 +---------------------------------+--------------------------------+
                                   v
-          human "go" [human] -> opened -> reviews answered, rivals deferred to
-```
-
-### 3. Capture: what should next time know?
-
-```
-+------------------------------------------------------------------+
-| after the PR is open, or the fix landed on our side              |
-+--------------------+-------------------------+-------------------+
-                     |       two at once       |
-                     v                         v
+          human "go" [human] -> opened -> reviews answered
+                     |                                  |
+                     |           two at once            |
+                     v                                  v
 +-------------------------------+  +-------------------------------+
 | RUN RECORD             [code] |  | LEARNING PASS           [AI]  |
-| Q: what happened, in numbers? |  | Q: what did this teach that a |
-| A: candidates, funded, gate   |  |    rule should carry?         |
-|    outcomes, PRs opened,      |  | A: notes on this repo, dated; |
-|    review rounds, patches     |  |    rules changed; every       |
-|    retired                    |  |    "retire once X ships"      |
-|                               |  |    claim re-checked           |
-+---------------+---------------+  +---------------+---------------+
-                |                                  |
-                +----------------+-----------------+
-                                 v
-                    the next run starts smarter
+| Q: what happened, in numbers? |  | Q: what should next time know?|
+| A: candidates, funded, gate   |  | A: notes on this repo, dated; |
+|    outcomes, PRs opened,      |  |    rules changed; every       |
+|    review rounds, patches     |  |    "retire once X ships"      |
+|    retired                    |  |    claim re-checked           |
++-------------------------------+  +-------------------------------+
 ```
