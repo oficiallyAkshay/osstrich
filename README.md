@@ -12,6 +12,24 @@ You depend on a few hundred open-source projects. Some are tiny, tired, and one 
 - **`osstrich build <repo | issue | patch>`** — their norms, the failing test first, the smallest fix, in their voice, with your name on it.
 - **The gate between them** — is there a way to use the library that makes the fix optional? Then the fix is a gift, not a chore.
 
+## Install
+
+```sh
+npm install https://github.com/oficiallyAkshay/osstrich/releases/latest/download/osstrich.tgz
+```
+
+`gh` and `gitleaks` must be on PATH, along with any headless coding agent CLI (e.g. `claude -p`, `codex exec`) for the judgment phases.
+
+## Quick start
+
+```sh
+osstrich init
+osstrich discover
+osstrich discover --headless
+osstrich build owner/repo#123
+osstrich status
+```
+
 ## How it thinks
 
 ### 1. Discover: what should we contribute?
