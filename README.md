@@ -1,20 +1,22 @@
 # osstrich
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-black.svg)](LICENSE) ![Human go required](https://img.shields.io/badge/every%20PR-human%20%22go%22%20required-black) ![No external agents](https://img.shields.io/badge/external%20agents-none-black) ![Last commit](https://img.shields.io/github/last-commit/oficiallyAkshay/osstrich?color=black) ![Stars](https://img.shields.io/github/stars/oficiallyAkshay/osstrich?style=flat&color=black)
+
 The bird that takes its head out of the sand.
 
-You depend on a few hundred open-source projects. Some are tiny, tired, and one bug away from ruining your week. osstrich reads *your* repo, finds the libraries where your next step and their open issue are the same thing, and helps you fix it upstream the way the maintainer would have.
+You depend on a few hundred open-source projects. Some are tiny, tired, and one bug away from ruining your week. osstrich reads *your* repo, finds the libraries where your next step and their open issue are the same thing, and fixes it upstream the way the maintainer would have.
 
 ## What it does
 
-- **`osstrich discover`** inventories every project you run, ranks the least popular first (community before company), crosses your backlog and your workarounds against their open issues, and hands you one table: fund, defer, skip.
-- **`osstrich build <repo | issue | patch>`** scouts the repo's real norms, writes the failing test first, ships the smallest fix, in their voice, with your name on it.
-- **A gate between them** asks the question most people skip: is there a way to use the library that makes the fix optional? Often there is, and the fix becomes a gift instead of a chore.
+- **`osstrich discover`** — every project you run, least popular first, community before company, crossed against your backlog and workarounds. One table: fund, defer, skip.
+- **`osstrich build <repo | issue | patch>`** — their norms, the failing test first, the smallest fix, in their voice, with your name on it.
+- **The gate between them** — is there a way to use the library that makes the fix optional? Then the fix is a gift, not a chore.
 
-It is a runbook for an AI coding agent plus a few deterministic scripts. It is not a bot that spams maintainers: every outward action waits for a human "go".
+A runbook for an AI coding agent plus a few deterministic scripts. Not a bot: every outward action waits for a human "go".
 
 ## How it thinks
 
-Tags on each step: `code` runs the same way twice with no model in it, `AI` is a judgment, `human` is the only one who posts anything.
+`code` = deterministic · `AI` = judgment · `human` = the only one who posts
 
 ### 1. Discover: what should we contribute?
 
@@ -152,11 +154,9 @@ Tags on each step: `code` runs the same way twice with no model in it, `AI` is a
                     the next run starts smarter
 ```
 
-Two steps stay serial on purpose: the branches wait for the library list (a local read, seconds), and the fix waits for a red test.
-
 ## Status
 
-Extracted from a private repo where it has shipped three upstream pull requests. Being sanitized for public use; expect rough edges.
+Extracted from a private repo where it shipped three upstream PRs. Sanitizing for public use; expect rough edges.
 
 ## Name
 
