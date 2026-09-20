@@ -1,0 +1,19 @@
+# The same check CI runs, run here through pre-commit — mirrors
+# clonometer's own local-hook pattern for a tool that's the project's own
+# dependency rather than a pre-commit-maintained mirror. ESLint has no
+# official pre-commit mirror repo, and a third-party mirror would need its
+# own copy of every plugin version pinned in package.json, risking drift
+# from what CI actually runs; `npx eslint` always uses THIS repo's installed
+# eslint.config.mjs and plugin versions.
+repos:
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        description: >-
+          Lint the whole repo with this project's own ESLint config — not
+          staged-files-only, so local and CI always agree on what's clean.
+        entry: npx eslint .
+        language: system
+        pass_filenames: false
+        always_run: true

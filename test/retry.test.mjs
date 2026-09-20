@@ -21,7 +21,7 @@ test('retryOnce: a retryable failure is retried exactly once, then succeeds', as
 
   const result = await retrier(() => {
     calls += 1;
-    if (calls === 1) throw new Error('transient');
+    if (calls === 1) {throw new Error('transient');}
     return 'ok';
   });
 

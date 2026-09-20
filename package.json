@@ -14,7 +14,7 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "license": "MIT",
   "scripts": {
@@ -30,7 +30,10 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
-    "eslint": "^9.39.5"
+    "@eslint/js": "10.0.1",
+    "eslint": "10.11.0",
+    "eslint-plugin-n": "18.3.0",
+    "eslint-plugin-unicorn": "76.0.0",
+    "globals": "17.12.0"
   }
 }

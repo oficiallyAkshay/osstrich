@@ -23,7 +23,7 @@ test('config set writes a dotted key through saveConfig', async () => {
   const deps = baseDeps();
   const code = await configRun(['set', 'agent.model', 'gpt-5'], deps);
   assert.equal(code, 0);
-  const saved = JSON.parse(deps.fs.readFileSync('/repo/.osstrich.json'));
+  const saved = JSON.parse(deps.fs.readFileSync('/repo/.osstrich.json', 'utf8'));
   assert.deepEqual(saved, { agent: { model: 'gpt-5' } });
 });
 

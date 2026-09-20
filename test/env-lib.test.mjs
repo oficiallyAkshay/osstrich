@@ -1,9 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import fs, { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import fs from 'node:fs';
 import { loadEnv } from '../lib/env.mjs';
 
 test('loadEnv returns the env unchanged when there is no .env file', () => {

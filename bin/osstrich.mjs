@@ -48,7 +48,7 @@ export function buildDeps({ argv = process.argv, env = process.env } = {}) {
   };
 }
 
-export { formatFailure };
+
 
 export async function main(argv, deps) {
   const [command, ...rest] = argv;
@@ -63,11 +63,11 @@ export async function main(argv, deps) {
   }
 
   try {
-    if (command === 'init') return await initCommand.run(rest, deps);
-    if (command === 'config') return await configCommand.run(rest, deps);
-    if (command === 'env') return await envCommand.run(rest, deps);
-    if (command === 'status') return await statusCommand.run(rest, deps);
-    if (CORE_COMMANDS.has(command)) return await dispatchCore(command, rest, deps);
+    if (command === 'init') {return await initCommand.run(rest, deps);}
+    if (command === 'config') {return await configCommand.run(rest, deps);}
+    if (command === 'env') {return await envCommand.run(rest, deps);}
+    if (command === 'status') {return await statusCommand.run(rest, deps);}
+    if (CORE_COMMANDS.has(command)) {return await dispatchCore(command, rest, deps);}
 
     deps.stderr.write(USAGE);
     return 2;
@@ -88,8 +88,8 @@ function isMain() {
 
 if (isMain()) {
   const deps = buildDeps();
-  main(process.argv.slice(2), deps).then((code) => {
-    process.exitCode = code;
-  });
+  process.exitCode = await main(process.argv.slice(2), deps);
 }
 /* c8 ignore stop */
+
+export {formatFailure} from '../lib/errors.mjs';

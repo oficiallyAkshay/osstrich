@@ -17,7 +17,7 @@ export function createFakeFs(initialFiles = {}) {
     for (;;) {
       dirs.add(dir);
       const parent = path.dirname(dir);
-      if (parent === dir) break;
+      if (parent === dir) {break;}
       dir = parent;
     }
   }
@@ -78,11 +78,13 @@ export function createFakeFs(initialFiles = {}) {
       const prefix = p.endsWith('/') ? p : `${p}/`;
       const entries = new Set();
       for (const key of [...files.keys(), ...dirs]) {
-        if (key !== p && key.startsWith(prefix)) {
-          const rest = key.slice(prefix.length);
-          const first = rest.split('/')[0];
-          if (first) entries.add(first);
+        if (key === p || !key.startsWith(prefix)) {
+          continue;
         }
+
+        const rest = key.slice(prefix.length);
+        const [first] = rest.split('/', 1);
+        if (first) {entries.add(first);}
       }
       return [...entries];
     },

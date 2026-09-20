@@ -30,9 +30,11 @@ jobs:
       # cancelling it and leaving the result unknown.
       fail-fast: false
       matrix:
-        # Not 20, though package.json's engines field still says ">=20":
-        # execa and cockatiel both require Node 22, so the suite cannot run
-        # there at all. 22 is the real floor and 24 is the current line.
+        # Not 20: execa and cockatiel both require Node 22, so the suite
+        # cannot run there at all. package.json's engines field now says
+        # ">=22" to match (the lint pass below caught the old ">=20" via
+        # n/no-unsupported-features/node-builtins flagging global `fetch`).
+        # 22 is the real floor and 24 is the current line.
         node: [22, 24]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -73,7 +75,12 @@ jobs:
         with:
           node-version: 24
       - run: npm ci
-      - run: npm run lint
+      # The same hook contributors run locally (.pre-commit-config.yaml), so
+      # CI and the pre-commit config cannot drift — a change to how the
+      # eslint hook is invoked only has to be made once. pipx ships
+      # preinstalled on the runner image, so this needs no extra setup step
+      # for a repo with no other Python use.
+      - run: pipx run pre-commit run --all-files --show-diff-on-failure
 
   # The one context a required-checks rule needs to know. It exists on every
   # run whatever the matrix does, and fails unless every job it needs

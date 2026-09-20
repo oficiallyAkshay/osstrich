@@ -21,22 +21,23 @@ export function createFakePrompts({ cancelOnCall = null, textAnswers = [], passw
   return {
     async text() {
       call += 1;
-      if (cancelOnCall === call) return CANCEL;
+      if (cancelOnCall === call) {return CANCEL;}
       return answers.length > 0 ? answers.shift() : '';
     },
     async password() {
       call += 1;
-      if (cancelOnCall === call) return CANCEL;
-      return passwordAnswer;
+      return cancelOnCall === call ? CANCEL : passwordAnswer;
     },
     async multiselect() {
       call += 1;
-      if (cancelOnCall === call) return CANCEL;
-      return multiselectAnswer;
+      return cancelOnCall === call ? CANCEL : multiselectAnswer;
     },
     isCancel(value) {
       return value === CANCEL;
     },
-    cancel() {},
+    cancel() {
+      // No-op: this fake's `cancel` only needs to exist to satisfy the
+      // @clack/prompts-shaped interface — no test asserts it was called.
+    },
   };
 }
