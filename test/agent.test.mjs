@@ -109,6 +109,67 @@ test('a failing stage retries once, then records "failed" and appends errors.jso
   assert.match(record.error, /agent exploded/);
 });
 
+test('errorMessage prefers .shortMessage (the real execa error shape) over .message', async () => {
+  const runDir = tmpRunDir();
+  const exec = async () => {
+    const error = new Error('the long, full stack-trace-carrying message');
+    error.shortMessage = 'Command failed with exit code 1';
+    throw error;
+  };
+
+  const result = await runAgentStage({ stage: 'shortmsg', prompt: 'p', cwd: runDir, command: 'aider', model: null, env: {}, runDir, exec, timeoutMs: 5000 });
+
+  assert.equal(result.ok, false);
+  const status = readStatus(runDir);
+  const phase = status.phases.find((p) => p.stage === 'shortmsg');
+  assert.equal(phase.error, 'Command failed with exit code 1');
+});
+
+test('an Error with neither .shortMessage nor a real .message falls back to String(error); exitCode falls back to 1', async () => {
+  const runDir = tmpRunDir();
+  const exec = async () => {
+    // An empty `.message` (assigned, not passed to the constructor, so
+    // unicorn/error-message never flags it) forces errorMessage() past
+    // BOTH `|| ` checks to its final `String(error)` fallback; no
+    // `.exitCode` at all exercises that field's own `?? 1` fallback.
+    const error = new Error('placeholder');
+    error.message = '';
+    throw error;
+  };
+
+  const result = await runAgentStage({ stage: 'emptymessage', prompt: 'p', cwd: runDir, command: 'aider', model: null, env: {}, runDir, exec, timeoutMs: 5000 });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.exitCode, 1);
+  const status = readStatus(runDir);
+  const phase = status.phases.find((p) => p.stage === 'emptymessage');
+  assert.equal(phase.error, 'Error');
+});
+
+test('a thrown error that already carries a real .exitCode (the real execa shape) passes it through unchanged', async () => {
+  const runDir = tmpRunDir();
+  const exec = async () => {
+    const error = new Error('agent exited nonzero');
+    error.exitCode = 17;
+    throw error;
+  };
+
+  const result = await runAgentStage({ stage: 'realexitcode', prompt: 'p', cwd: runDir, command: 'aider', model: null, env: {}, runDir, exec, timeoutMs: 5000 });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.exitCode, 17);
+});
+
+test('a resolved result with no .exitCode field at all falls back to exitCode 0', async () => {
+  const runDir = tmpRunDir();
+  const exec = async () => ({});
+
+  const result = await runAgentStage({ stage: 'noresult', prompt: 'p', cwd: runDir, command: 'aider', model: null, env: {}, runDir, exec, timeoutMs: 5000 });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.exitCode, 0);
+});
+
 test('a hung stage times out per attempt and gives up after one retry', async () => {
   const runDir = tmpRunDir();
   let callCount = 0;

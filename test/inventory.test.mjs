@@ -56,7 +56,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { collectInventory } from "../lib/inventory.mjs";
-import { test, after } from "node:test";
+import { test, after, mock } from "node:test";
 import assert from "node:assert/strict";
 
 function ok(name, cond, detail = "") {
@@ -955,5 +955,549 @@ test("collectInventory: a repo that neither depends on nor vendors osstrich gets
 
 		ok("the real dependency surfaces", Boolean(find(result.projects, "npm", "acme-real-dep")));
 		ok("no self gap when nothing was dropped", result.gaps.every((g) => g.source !== "self"), JSON.stringify(result.gaps));
+	}
+});
+
+/** `scopedFs`, plus a deliberate `readFileSync` failure for every
+ * repo-relative path in `failFor` — the "one source file this module can't
+ * read" seam each of the six readers answers differently (a gap for the
+ * three that own their file type, a silent skip for the three that merely
+ * scan every file looking for a shape). */
+function failingReadFs(root, failFor) {
+	const base = scopedFs(root);
+	const failing = new Set(failFor);
+	return {
+		...base,
+		readFileSync: (p, enc) => {
+			const rel = path.relative(root, path.resolve(String(p))).split(path.sep).join("/");
+			if (failing.has(rel)) {throw new Error(`EACCES: simulated unreadable file ${rel}`);}
+			return base.readFileSync(p, enc);
+		},
+	};
+}
+
+test("collectInventory: an unreadable file degrades only its own reader — a gap where the reader owns the file type, silent where it was only scanning", async () => {
+	{
+		const repoRoot = mkdtempSync(path.join(tmpRoot, "unreadable-"));
+		const w = (rel, content) => {
+			const abs = path.join(repoRoot, rel);
+			mkdirSync(path.dirname(abs), { recursive: true });
+			writeFileSync(abs, content);
+		};
+
+		// Owned file types — each reader reports its own gap.
+		w("package.json", JSON.stringify({ dependencies: { "acme-unreadable-dep": "^1.0.0" } }));
+		w("docker-compose.yml", ["services:", "  db:", "    image: postgres:17", ""].join("\n"));
+		w(".github/workflows/ci.yml", ["jobs:", "  build:", "    steps:", "      - uses: acme/unreadable-action@abcdef1  # v1.0.0", ""].join("\n"));
+		// Merely-scanned files — an unreadable one is simply "not that shape".
+		w("scripts/pin.mjs", `const url = \`https://github.com/acme/tool-unreadable/${  REL  }/tag/v1.0.0\`;\n`);
+		w("docs/patches.md", ["# Notes", "", "## Patches we carry", "", "1. Something from acme/unreadable-fork.", ""].join("\n"));
+		// A second manifest that IS readable — proves one bad file degrades
+		// only itself, never the whole reader.
+		w("sub/package.json", JSON.stringify({ dependencies: { "acme-readable-dep": "^2.0.0" } }));
+
+		const unreadable = ["package.json", "docker-compose.yml", ".github/workflows/ci.yml", "scripts/pin.mjs", "docs/patches.md"];
+		async function notFoundFetch() {
+			return { ok: false, status: 404 };
+		}
+		async function neverCalledExec() {
+			throw new Error("should never be called — no surviving row resolves a repo");
+		}
+		const result = await collectInventory({
+			repoRoot,
+			fs: failingReadFs(repoRoot, unreadable),
+			exec: neverCalledExec,
+			fetch: notFoundFetch,
+			now: () => 0,
+		});
+
+		ok(
+			"npm-manifest gap names the unreadable manifest and the read failure",
+			result.gaps.some((g) => g.source === "npm-manifest" && g.file === "package.json" && /could not read manifest: /.test(g.error)),
+			JSON.stringify(result.gaps),
+		);
+		ok(
+			"container-images gap names the unreadable compose file",
+			result.gaps.some((g) => g.source === "container-images" && g.file === "docker-compose.yml" && /could not read: /.test(g.error)),
+			JSON.stringify(result.gaps),
+		);
+		ok(
+			"ci-actions gap names the unreadable workflow",
+			result.gaps.some((g) => g.source === "ci-actions" && g.file === ".github/workflows/ci.yml" && /could not read: /.test(g.error)),
+			JSON.stringify(result.gaps),
+		);
+		ok("the unreadable manifest's dependency produced no row", !find(result.projects, "npm", "acme-unreadable-dep"), JSON.stringify(result.projects));
+		ok("the unreadable compose file's image produced no row", !find(result.projects, "image", "postgres"));
+		ok("the unreadable workflow's action produced no row", !find(result.projects, "action", "acme/unreadable-action"));
+
+		ok("an unreadable would-be binary-pin file is not a binary-pins gap — it is simply not that shape", result.gaps.every((g) => g.source !== "binary-pins"), JSON.stringify(result.gaps));
+		ok("no binary row from the unreadable pin file", !find(result.projects, "binary", "tool-unreadable"));
+		ok("an unreadable markdown file is not a hand-patches gap either", result.gaps.every((g) => g.source !== "hand-patches"), JSON.stringify(result.gaps));
+		ok("no patch row from the unreadable markdown file", result.projects.every((p) => p.kind !== "patch"), JSON.stringify(result.projects));
+
+		ok("the OTHER, readable manifest still produced its row — one bad file degrades only itself", Boolean(find(result.projects, "npm", "acme-readable-dep")), JSON.stringify(result.projects));
+	}
+});
+
+test("collectInventory: an interpolated binary pin takes the NEAREST same-named constant, not the first or the last one in the file", async () => {
+	{
+		const repoRoot = mkdtempSync(path.join(tmpRoot, "nearest-const-"));
+		mkdirSync(path.join(repoRoot, "scripts"), { recursive: true });
+		// Three assignments to the SAME constant: the first scanned is far
+		// above the URL, the second is the line right below it, the third is
+		// far below again. Only the middle one may win — which needs the
+		// comparator to both ACCEPT a closer later candidate and REJECT a
+		// farther one after that.
+		writeFileSync(
+			path.join(repoRoot, "scripts/nearest-const.mjs"),
+			[
+				'const TOOL_VERSION = "9.9.9"; // 11 lines above the URL — scanned first',
+				...Array.from({ length: 10 }, (_, i) => `// filler ${i + 1}`),
+				`const url = \`https://github.com/acme/tool-nearest/${  REL  }/download/v\${TOOL_VERSION}/t.tgz\`;`,
+				'const TOOL_VERSION = "1.0.0"; // 1 line below the URL — the nearest',
+				...Array.from({ length: 10 }, (_, i) => `// more filler ${i + 1}`),
+				'const TOOL_VERSION = "5.5.5"; // 12 lines below the URL — scanned last',
+				"",
+			].join("\n"),
+		);
+
+		async function lowBudgetExec(_cmd, args) {
+			if (args[1] === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 1 } } }) };}
+			throw new Error(`unexpected exec target: ${args[1]}`);
+		}
+		const neverCalledFetch = async () => {
+			throw new Error("should never be called — no npm row in this fixture");
+		};
+		const result = await collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: lowBudgetExec, fetch: neverCalledFetch, now: () => 0 });
+
+		const toolNearest = find(result.projects, "binary", "tool-nearest");
+		ok(
+			"the constant nearest the release URL wins over both a farther earlier one and a farther later one",
+			toolNearest?.ours === "1.0.0" && toolNearest.repo === "acme/tool-nearest",
+			JSON.stringify(toolNearest),
+		);
+	}
+});
+
+test("collectInventory: a patch-package file whose registry lookup fails, or whose package names no GitHub repo, keeps its row and says why", async () => {
+	{
+		const repoRoot = mkdtempSync(path.join(tmpRoot, "patch-registry-"));
+		const w = (rel, content) => {
+			const abs = path.join(repoRoot, rel);
+			mkdirSync(path.dirname(abs), { recursive: true });
+			writeFileSync(abs, content);
+		};
+		w("patches/acme-nometa+1.0.0.patch", "--- a/index.js\n+++ b/index.js\n");
+		w("patches/acme-norepo+2.0.0.patch", "--- a/index.js\n+++ b/index.js\n");
+
+		async function fakeFetch(url) {
+			if (url.includes("registry.npmjs.org/acme-nometa")) {return { ok: false, status: 404 };}
+			if (url.includes("registry.npmjs.org/acme-norepo")) {return { ok: true, json: async () => ({ version: "2.0.0" }) };}
+			throw new Error(`unexpected fetch url: ${url}`);
+		}
+		async function neverCalledExec() {
+			throw new Error("should never be called — neither patch row ever resolves a repo");
+		}
+		const result = await collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: neverCalledExec, fetch: fakeFetch, now: () => 0 });
+
+		const noMeta = find(result.projects, "patch", "acme-nometa#patch-1");
+		ok("a failed registry lookup still yields a row, named by the package instead of the repo", noMeta?.repo === null && noMeta.label === "acme-nometa+1.0.0.patch", JSON.stringify(noMeta));
+		ok(
+			"the failed lookup is a hand-patches gap naming the package",
+			result.gaps.some((g) => g.source === "hand-patches" && g.file === "acme-nometa" && /registry\.npmjs\.org lookup failed/.test(g.error)),
+			JSON.stringify(result.gaps),
+		);
+
+		const noRepo = find(result.projects, "patch", "acme-norepo#patch-1");
+		ok("a package whose registry metadata has no repository field also keeps its row", noRepo?.repo === null, JSON.stringify(noRepo));
+		ok(
+			"the missing repository field is its own, differently-worded gap",
+			result.gaps.some((g) => g.source === "hand-patches" && g.file === "acme-norepo" && /no GitHub repository field/.test(g.error)),
+			JSON.stringify(result.gaps),
+		);
+	}
+});
+
+test("collectInventory: a markdown patch item naming BOTH a github.com URL and a bare owner/repo token takes whichever appears first", async () => {
+	{
+		const repoRoot = mkdtempSync(path.join(tmpRoot, "patch-token-order-"));
+		mkdirSync(path.join(repoRoot, "docs"), { recursive: true });
+		writeFileSync(
+			path.join(repoRoot, "docs/tokens.md"),
+			[
+				"# Token matching notes",
+				"",
+				"## Patches resolved by token order",
+				"",
+				`1. Fixes https://github.com/acme/url-fork as tracked in acme/bare-note today.`,
+				"2. Tracked in acme/bare-first before github.com/acme/url-second lands upstream.",
+				"",
+			].join("\n"),
+		);
+
+		async function lowBudgetExec(_cmd, args) {
+			if (args[1] === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 1 } } }) };}
+			throw new Error(`unexpected exec target: ${args[1]}`);
+		}
+		const neverCalledFetch = async () => {
+			throw new Error("should never be called — no npm row in this fixture");
+		};
+		const result = await collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: lowBudgetExec, fetch: neverCalledFetch, now: () => 0 });
+
+		ok(
+			"the URL wins when it sits earlier in the item's own text than the bare token",
+			Boolean(find(result.projects, "patch", "acme/url-fork#patch-1")),
+			JSON.stringify(result.projects.map((p) => p.name)),
+		);
+		ok(
+			"the bare token wins when IT sits earlier — the two matchers are ordered by position, not by preference",
+			Boolean(find(result.projects, "patch", "acme/bare-first#patch-2")),
+			JSON.stringify(result.projects.map((p) => p.name)),
+		);
+	}
+});
+
+test("collectInventory: markdown patch-list context — first project mentioned, a mentioned project with no repo, an abutting preamble, and no context at all", async () => {
+	{
+		const repoRoot = mkdtempSync(path.join(tmpRoot, "patch-context-"));
+		const w = (rel, content) => {
+			const abs = path.join(repoRoot, rel);
+			mkdirSync(path.dirname(abs), { recursive: true });
+			writeFileSync(abs, content);
+		};
+
+		// Two host rows, in table order — the candidate-project list the
+		// markdown reader matches item text against.
+		w(
+			"hosts.md",
+			[
+				"| name | upstream repo | how installed | where the version is read | notes |",
+				"|---|---|---|---|---|",
+				"| aaa-tool | acme/aaa-up | brew | `aaa-tool --version` | |",
+				"| bbb-tool | acme/bbb-up | brew | `bbb-tool --version` | |",
+				"",
+			].join("\n"),
+		);
+		// An npm dependency row: known by NAME at markdown-reading time, but
+		// its `repo` is still null then (the registry queue runs later), so
+		// mentioning it resolves nothing and the item must keep falling back.
+		w("package.json", JSON.stringify({ dependencies: { "acme-nullrepo-dep": "^1.0.0" } }));
+		w("package-lock.json", JSON.stringify({ packages: { "node_modules/acme-nullrepo-dep": { version: "1.0.0" } } }));
+
+		w(
+			"docs/context.md",
+			[
+				"# Context notes",
+				"",
+				"## Patches ordered by first project mentioned",
+				"",
+				"1. Rebuilt aaa-tool before bbb-tool in the same maintenance pass.",
+				"",
+				"## Patches for acme/fallback-fork",
+				"",
+				"1. Touches acme-nullrepo-dep and nothing else worth naming here.",
+				"",
+				"## Patches carried with no blank line before the list",
+				"The umbrella project is acme/abut-fork for every one of these.",
+				"1. An item naming nothing resolvable of its own at all.",
+				"",
+			].join("\n"),
+		);
+		// No `# ` heading anywhere, and the list abuts its heading directly:
+		// every fallback context is empty, so `repo` must stay null.
+		w(
+			"docs/nopreamble.md",
+			["## Patches with no preamble and no first-level heading", "1. An item resolving nothing from anywhere at all.", ""].join("\n"),
+		);
+
+		async function lowBudgetExec(_cmd, args) {
+			if (args[1] === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 1 } } }) };}
+			throw new Error(`unexpected exec target: ${args[1]}`);
+		}
+		async function notFoundFetch() {
+			return { ok: false, status: 404 };
+		}
+		const result = await collectInventory({
+			repoRoot,
+			fs: scopedFs(repoRoot),
+			exec: lowBudgetExec,
+			fetch: notFoundFetch,
+			now: () => 0,
+			hostsFile: "hosts.md",
+		});
+		const names = result.projects.map((p) => p.name);
+
+		ok("the EARLIEST-mentioned known project wins, not the last one scanned", names.includes("acme/aaa-up#patch-1"), JSON.stringify(names));
+		ok("the later-mentioned known project never overrides it", !names.includes("acme/bbb-up#patch-1"), JSON.stringify(names));
+		ok(
+			"mentioning a known project that has no repo YET resolves nothing — the item keeps falling back to its heading",
+			names.includes("acme/fallback-fork#patch-1"),
+			JSON.stringify(names),
+		);
+		ok(
+			"a preamble paragraph abutting the list (no blank line between them) is still the item's nearest context",
+			names.includes("acme/abut-fork#patch-1"),
+			JSON.stringify(names),
+		);
+
+		const noContext = result.projects.find((p) => p.kind === "patch" && p.name === "patch-1");
+		ok(
+			"an item with no preamble, no heading token, and no first-level heading in the file keeps repo null",
+			Boolean(noContext) && noContext.repo === null,
+			JSON.stringify(noContext),
+		);
+		ok(
+			"that item is a gap, not a silent null",
+			result.gaps.some((g) => g.source === "hand-patches" && g.file === "docs/nopreamble.md" && /names no recognizable upstream repo/.test(g.error)),
+			JSON.stringify(result.gaps),
+		);
+	}
+});
+
+test("collectInventory: host-install table rows that are too short, unnamed, or repo-less", async () => {
+	{
+		const repoRoot = mkdtempSync(path.join(tmpRoot, "hosts-edge-"));
+		mkdirSync(repoRoot, { recursive: true });
+		writeFileSync(
+			path.join(repoRoot, "hosts.md"),
+			[
+				"| name | upstream repo | how installed | where the version is read | notes |",
+				"|---|---|---|---|---|",
+				"| short-row | only two cells |",
+				"|  | acme/unnamed-up | brew | `x --version` | |",
+				"| no-repo-tool |  | brew | `no-repo-tool --version` | |",
+				"",
+			].join("\n"),
+		);
+
+		const neverCalled = async () => {
+			throw new Error("should never be called — the only surviving host row carries no repo");
+		};
+		const result = await collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: neverCalled, fetch: neverCalled, now: () => 0, hostsFile: "hosts.md" });
+
+		ok("a row with fewer than four cells is skipped, not half-read", !find(result.projects, "host", "short-row"), JSON.stringify(result.projects));
+		ok("a row with an empty name cell is skipped", result.projects.every((p) => p.repo !== "acme/unnamed-up"), JSON.stringify(result.projects));
+		const noRepo = find(result.projects, "host", "no-repo-tool");
+		ok("a row with an empty repo cell still becomes a row, with repo null rather than an empty string", noRepo?.repo === null, JSON.stringify(noRepo));
+		ok("exactly one host row survives", result.projects.filter((p) => p.kind === "host").length === 1, JSON.stringify(result.projects));
+	}
+});
+
+test("collectInventory: registry metadata that answers but omits the fields — absent is null, and is not a gap", async () => {
+	{
+		const repoRoot = mkdtempSync(path.join(tmpRoot, "registry-shapes-"));
+		writeFileSync(
+			path.join(repoRoot, "package.json"),
+			JSON.stringify({ dependencies: { "acme-empty-tags": "^1.0.0", "acme-gitlab-pkg": "^2.0.0" } }),
+		);
+		writeFileSync(
+			path.join(repoRoot, "package-lock.json"),
+			JSON.stringify({ packages: { "node_modules/acme-empty-tags": { version: "1.0.0" }, "node_modules/acme-gitlab-pkg": { version: "2.0.0" } } }),
+		);
+
+		async function fakeFetch(url) {
+			// An answer with a `dist-tags` object that has no `latest` in it,
+			// and a downloads answer with no `downloads` count in it.
+			if (url.includes("registry.npmjs.org/acme-empty-tags")) {return { ok: true, json: async () => ({ "dist-tags": {} }) };}
+			if (url.includes("api.npmjs.org/downloads/point/last-week/acme-empty-tags")) {return { ok: true, json: async () => ({}) };}
+			// A repository field that IS a string, but points somewhere other
+			// than github.com.
+			if (url.includes("registry.npmjs.org/acme-gitlab-pkg")) {return { ok: true, json: async () => ({ repository: "git+https://gitlab.com/acme/gitlab-pkg.git" }) };}
+			if (url.includes("api.npmjs.org/downloads/point/last-week/acme-gitlab-pkg")) {return { ok: true, json: async () => ({ downloads: 12 }) };}
+			throw new Error(`unexpected fetch url: ${url}`);
+		}
+		async function neverCalledExec() {
+			throw new Error("should never be called — no row resolves a GitHub repo");
+		}
+		const result = await collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: neverCalledExec, fetch: fakeFetch, now: () => 0 });
+
+		const emptyTags = find(result.projects, "npm", "acme-empty-tags");
+		ok("a dist-tags object with no latest leaves latest null", emptyTags?.latest === null, JSON.stringify(emptyTags));
+		ok("a downloads answer with no count leaves weeklyDownloads null", emptyTags?.weeklyDownloads === null, JSON.stringify(emptyTags));
+		ok(
+			"neither absence is a gap — the lookups answered, they just had nothing to say",
+			result.gaps.every((g) => g.source !== "npm-registry" && g.source !== "npm-downloads"),
+			JSON.stringify(result.gaps),
+		);
+
+		const gitlabPkg = find(result.projects, "npm", "acme-gitlab-pkg");
+		ok("a non-github repository URL resolves to no repo at all", gitlabPkg?.repo === null && gitlabPkg.weeklyDownloads === 12, JSON.stringify(gitlabPkg));
+	}
+});
+
+test("collectInventory: a rate-limit reading that parses but carries no number is treated as unverifiable, never as 'assume it's fine'", async () => {
+	{
+		const repoRoot = mkdtempSync(path.join(tmpRoot, "ratelimit-shapes-"));
+		mkdirSync(path.join(repoRoot, ".github/workflows"), { recursive: true });
+		writeFileSync(
+			path.join(repoRoot, ".github/workflows/ci.yml"),
+			"jobs:\n  build:\n    steps:\n      - uses: acme/shape-tool@1234567890abcdef1234567890abcdef12345678  # v1.0.0\n",
+		);
+		const neverCalledFetch = async () => {
+			throw new Error("fetch should never be called — no npm packages in this fixture");
+		};
+
+		async function emptyStdout(_cmd, args) {
+			if (args[1] === "rate_limit") {return { stdout: "" };}
+			throw new Error(`unexpected exec once an unreadable budget should have stopped the queue: ${args[1]}`);
+		}
+		const emptyResult = await collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: emptyStdout, fetch: neverCalledFetch, now: () => 0 });
+		ok("an empty rate_limit body skips the whole queue as unverifiable", emptyResult.gaps.some((g) => g.source === "github-metadata" && /unverifiable/.test(g.error)), JSON.stringify(emptyResult.gaps));
+		ok("no per-row lookup was attempted", find(emptyResult.projects, "action", "acme/shape-tool")?.stars === null);
+
+		async function missingRemaining(_cmd, args) {
+			if (args[1] === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: {} } }) };}
+			throw new Error(`unexpected exec once an unreadable budget should have stopped the queue: ${args[1]}`);
+		}
+		const missingResult = await collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: missingRemaining, fetch: neverCalledFetch, now: () => 0 });
+		ok(
+			"a well-formed rate_limit body with no `remaining` field is unverifiable too",
+			missingResult.gaps.some((g) => g.source === "github-metadata" && /unverifiable/.test(g.error)),
+			JSON.stringify(missingResult.gaps),
+		);
+		ok("and it too skips every per-row lookup", find(missingResult.projects, "action", "acme/shape-tool")?.stars === null);
+	}
+});
+
+test("collectInventory: GitHub answers that are empty or fail per-row degrade that row's fields, never the queue", async () => {
+	{
+		const repoRoot = mkdtempSync(path.join(tmpRoot, "gh-degraded-"));
+		mkdirSync(path.join(repoRoot, ".github/workflows"), { recursive: true });
+		writeFileSync(
+			path.join(repoRoot, ".github/workflows/ci.yml"),
+			[
+				"jobs:",
+				"  build:",
+				"    steps:",
+				"      - uses: acme/empty-meta@1234567890abcdef1234567890abcdef12345678  # v1.0.0",
+				"      - uses: acme/release-fail@abcdef1234567890abcdef1234567890abcdef12  # v2.0.0",
+				"",
+			].join("\n"),
+		);
+		const neverCalledFetch = async () => {
+			throw new Error("fetch should never be called — no npm packages in this fixture");
+		};
+
+		async function degradedExec(_cmd, args) {
+			const [, target] = args;
+			if (target === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 4000 } } }) };}
+			// An empty body: a successful call that carries no fields at all.
+			if (target === "repos/acme/empty-meta" || target === "repos/acme/empty-meta/releases/latest") {return { stdout: "" };}
+			if (target === "repos/acme/release-fail") {return { stdout: JSON.stringify({ stargazers_count: 5, archived: true, owner: { type: "User" }, open_issues_count: 2 }) };}
+			if (target === "repos/acme/release-fail/releases/latest") {
+				// A real (non-transient) 404 body, so `execGh` answers on the
+				// first call rather than spending this test the retry backoff.
+				const notFound = new Error("gh: HTTP 404");
+				notFound.code = 1;
+				notFound.stdout = JSON.stringify({ message: "Not Found" });
+				throw notFound;
+			}
+			throw new Error(`unexpected exec target: ${target}`);
+		}
+		const result = await collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: degradedExec, fetch: neverCalledFetch, now: () => 0, concurrency: 2 });
+
+		const emptyMeta = find(result.projects, "action", "acme/empty-meta");
+		ok(
+			"an empty repos/ body leaves every enriched field null while the row itself survives",
+			emptyMeta?.stars === null && emptyMeta.archived === null && emptyMeta.ownerType === null && emptyMeta.openIssues === null && emptyMeta.ours === "v1.0.0",
+			JSON.stringify(emptyMeta),
+		);
+		ok("an empty releases/latest body leaves latest null rather than inventing a tag", emptyMeta?.latest === null, JSON.stringify(emptyMeta));
+
+		const releaseFail = find(result.projects, "action", "acme/release-fail");
+		ok("the other row in the same batch still got its full metadata", releaseFail?.stars === 5 && releaseFail.archived === true && releaseFail.ownerType === "User", JSON.stringify(releaseFail));
+		ok("its failed releases/latest call is its own gap", result.gaps.some((g) => g.source === "github-releases" && g.file === "acme/release-fail"), JSON.stringify(result.gaps));
+		ok("a failed releases/latest call is never a repos/ metadata gap", result.gaps.every((g) => g.source !== "github-metadata"), JSON.stringify(result.gaps));
+	}
+});
+
+test("collectInventory: a repo root that can't be walked at all is one gap, not a throw", async () => {
+	{
+		const unwalkableFs = {
+			readdirSync: () => {
+				throw new Error("EACCES: simulated unreadable repo root");
+			},
+			readFileSync: () => {
+				throw new Error("should never be called — the walk never produced a path to read");
+			},
+		};
+		const neverCalled = async () => {
+			throw new Error("should never be called — nothing was ever found to look up");
+		};
+		const result = await collectInventory({ repoRoot: "/nonexistent-fixture-root", fs: unwalkableFs, exec: neverCalled, fetch: neverCalled, now: () => 0 });
+
+		ok("no throw escapes collectInventory", true);
+		ok("zero projects", result.projects.length === 0, JSON.stringify(result.projects));
+		ok("status is incomplete", result.status === "incomplete", result.status);
+		ok(
+			"one repo-walk gap names the root and the real failure",
+			result.gaps.some((g) => g.source === "repo-walk" && /failed to walk \/nonexistent-fixture-root: /.test(g.error)),
+			JSON.stringify(result.gaps),
+		);
+	}
+});
+
+test("collectInventory: a registry call that never answers is aborted by the call timeout, then degraded to gaps", async () => {
+	{
+		const repoRoot = mkdtempSync(path.join(tmpRoot, "fetch-abort-"));
+		writeFileSync(path.join(repoRoot, "package.json"), JSON.stringify({ dependencies: { "acme-hang-pkg": "^1.0.0" } }));
+		writeFileSync(path.join(repoRoot, "package-lock.json"), JSON.stringify({ packages: { "node_modules/acme-hang-pkg": { version: "1.0.0" } } }));
+
+		let abortCount = 0;
+		// Never settles on its own: the ONLY thing that can end this call is
+		// the module's own abort timer, which is exactly what's under test.
+		const hangingFetch = (_url, { signal }) =>
+			new Promise((_resolve, reject) => {
+				signal.addEventListener("abort", () => {
+					abortCount += 1;
+					reject(new Error("aborted by the caller's signal"));
+				});
+			});
+		const neverCalledExec = async () => {
+			throw new Error("should never be called — no repo ever resolves");
+		};
+
+		// Fake time, so the real 15s call timeout (and the 500ms retry
+		// backoff behind it) cost this suite nothing. `mock.timers` is still
+		// flagged experimental until Node 23.1.0 while this package's
+		// `engines` floor is 22 — but it is present and working on BOTH legs
+		// of this repo's own CI matrix (22 and 24, see .github/workflows/
+		// ci.yml), and the only alternative for exercising a 15s abort is a
+		// test that really spends a minute of wall clock waiting for it.
+		// eslint-disable-next-line n/no-unsupported-features/node-builtins -- see the note above: present on this repo's whole CI matrix, and the only way to exercise the abort timer without a minute of real waiting.
+		mock.timers.enable({ apis: ["setTimeout"] });
+		let done = null;
+		try {
+			collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: neverCalledExec, fetch: hangingFetch, now: () => 0, concurrency: 1 }).then((r) => {
+				done = r;
+			});
+			// Drain: let the run register its next timer, fire it, repeat —
+			// two lookups, each one attempt plus one retry, so four timers
+			// plus their backoffs. A tick with nothing pending is a no-op,
+			// so a fixed, comfortably-large count is simply "run it out".
+			for (let i = 0; i < 40; i++) {
+				await new Promise((resolve) => {
+					setImmediate(resolve);
+				});
+				// eslint-disable-next-line n/no-unsupported-features/node-builtins -- see the disable comment above.
+				mock.timers.tick(20_000);
+			}
+			await new Promise((resolve) => {
+				setImmediate(resolve);
+			});
+		} finally {
+			// eslint-disable-next-line n/no-unsupported-features/node-builtins -- see the disable comment above.
+			mock.timers.reset();
+		}
+
+		ok("the run finished — an unanswered call never wedges the phase", done !== null);
+		ok("every attempt was ended by the abort timer, never left hanging", abortCount === 4, String(abortCount));
+		const row = find(done?.projects || [], "npm", "acme-hang-pkg");
+		ok("the row survives with its registry-filled fields null", row?.latest === null && row?.repo === null && row?.weeklyDownloads === null, JSON.stringify(row));
+		ok(
+			"both timed-out lookups are gaps",
+			done?.gaps.some((g) => g.source === "npm-registry" && g.file === "acme-hang-pkg") && done?.gaps.some((g) => g.source === "npm-downloads" && g.file === "acme-hang-pkg"),
+			JSON.stringify(done?.gaps),
+		);
 	}
 });

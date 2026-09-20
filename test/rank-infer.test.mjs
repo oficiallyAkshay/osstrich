@@ -176,6 +176,31 @@ test("osstrich-rank: edge cases (missing table, missing repo, null stars, narrow
 	const junkTable = ["some prose that is not a table", "| not a header row either |"].join("\n");
 	const junkResult = rankProjects(projects, junkTable);
 	ok("a markdown blob with no Project/Class header classifies nothing", junkResult.unclassified.length === 3);
+
+	// A row with an empty Project cell is skipped entirely; a row whose
+	// Class cell is present but empty falls back to "unclassified"; and
+	// present-but-empty Reason/Override/Last-verified cells each fall back
+	// to "" rather than the literal empty string breaking anything.
+	const emptyCellsTable = [
+		"| Project | Class | Reason | Override | Last verified |",
+		"|---|---|---|---|---|",
+		"|  | community | should never classify anything, no project name |  |  |",
+		"| org/measured |  |  |  |  |",
+	].join("\n");
+	const emptyCellsResult = rankProjects(projects, emptyCellsTable);
+	const emptyCellsRow = emptyCellsResult.rows.find((r) => r.name === "measured");
+	ok("an empty Project cell row is skipped, never crashes, never classifies anything", emptyCellsResult.unclassified.every((u) => u !== ""));
+	ok("an empty Class cell falls back to 'unclassified'", emptyCellsRow.class === "unclassified", emptyCellsRow.class);
+	ok("an empty Reason cell falls back to ''", emptyCellsRow.reason === "", JSON.stringify(emptyCellsRow));
+	ok("an empty Override cell falls back to ''", emptyCellsRow.override === "", JSON.stringify(emptyCellsRow));
+
+	// A table with NO Reason column at all (unlike narrowTable above, which
+	// has Reason but omits Override/Last-verified) exercises Reason's own
+	// "column absent" branch specifically.
+	const noReasonTable = ["| Project | Class |", "|---|---|", "| org/measured | community |"].join("\n");
+	const noReasonResult = rankProjects(projects, noReasonTable);
+	const noReasonRow = noReasonResult.rows.find((r) => r.name === "measured");
+	ok("a classification table with no Reason column at all defaults reason to ''", noReasonRow.reason === "", JSON.stringify(noReasonRow));
 }
 });
 
@@ -226,6 +251,23 @@ test("osstrich-rank: DEFECT A — a 404'd upstream repo lookup never ranks by do
 	const unrankedHeaderIdx = mdLines.indexOf("| Name | Reason |");
 	ok("rendered markdown never lists shellcheck in the main ranked table", mdLines.slice(0, unrankedHeaderIdx).every((l) => !l.includes("| shellcheck |")), md);
 	ok("rendered markdown lists shellcheck in the unranked table with the new reason", md.includes("| shellcheck | upstream repo not found |"), md);
+
+	// A github-metadata gap with no .error field at all (falls back to "")
+	// and one with no .file at all (skipped before the 404 text is even
+	// checked) must never crash and must never wrongly exclude anything.
+	const gapEdgeCasesInventory = {
+		projects: [{ name: "untouched", kind: "npm", repo: "org/untouched", stars: null, weeklyDownloads: 10 }],
+		gaps: [
+			{ source: "github-metadata", file: "org/untouched" },
+			{ source: "github-metadata", error: "HTTP 404" },
+		],
+	};
+	const gapEdgeCasesResult = rankProjects(gapEdgeCasesInventory);
+	ok(
+		"a github-metadata gap missing .error, or missing .file, never excludes a real project",
+		gapEdgeCasesResult.rows.some((r) => r.name === "untouched"),
+		JSON.stringify(gapEdgeCasesResult),
+	);
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -288,6 +330,14 @@ test("osstrich-rank: a missing classification file records a gap, never silently
 	);
 	ok("every project still ranks, just unclassified — a missing file never drops a project", missingResult.rows.length === 2 && missingResult.unclassified.length === 2);
 }
+});
+
+test("osstrich-rank: an inventory that is neither an array nor an object with a .projects array falls back to zero projects", async () => {
+	const noProjectsResult = rankProjects({ notProjects: [] });
+	ok("an object with no .projects array at all ranks zero rows, never throws", noProjectsResult.rows.length === 0 && noProjectsResult.unranked.length === 0, JSON.stringify(noProjectsResult));
+
+	const nullResult = rankProjects(null);
+	ok("a null inventory ranks zero rows, never throws", nullResult.rows.length === 0, JSON.stringify(nullResult));
 });
 
 test("osstrich-infer: real fixture repo — every signal, the cap, the skip list, decoys", async () => {
@@ -588,4 +638,49 @@ test("osstrich-infer: fail-soft paths via a fake fs (gaps[], never a throw)", as
 		JSON.stringify(flakyResult.gaps),
 	);
 }
+});
+
+test("osstrich-infer: a manifest with overrides but no patchedDependencies section exercises that section's own || {} fallback", () => {
+	const projects = [{ name: "acme-minimist", repo: "org/acme-minimist" }];
+	const fs = {
+		readdirSync: (dir) => (dir === "/fake-repo-nopatched" ? [{ name: "package.json", isDirectory: () => false, isFile: () => true }] : []),
+		readFileSync: () => JSON.stringify({ overrides: { "acme-minimist": "1.2.6" } }),
+	};
+	const result = inferNextSteps({ repoRoot: "/fake-repo-nopatched", fs, projects });
+	ok(
+		"a manifest with no patchedDependencies key at all still detects the override hit",
+		(result.byProject["acme-minimist"] || []).some((h) => h.signal === "override"),
+		JSON.stringify(result.byProject),
+	);
+});
+
+test("osstrich-infer: ignore explicitly passed as null (bypassing the default parameter) falls back to treating nothing as ignored", () => {
+	const projects = [{ name: "widget", repo: "org/widget" }];
+	const fs = {
+		readdirSync: (dir) => dir === "/fake-repo-nullignore" ? [{ name: "NOTES.md", isDirectory: () => false, isFile: () => true }] : [],
+		readFileSync: () => "workaround for widget's upstream bug, see #123\n",
+	};
+	const result = inferNextSteps({ repoRoot: "/fake-repo-nullignore", fs, projects, ignore: null });
+	ok(
+		"a doc-note hit still fires when ignore is explicitly null rather than the default []",
+		(result.byProject.widget || []).some((h) => h.signal === "doc-note"),
+		JSON.stringify(result.byProject),
+	);
+});
+
+test("osstrich-infer: a manifest key that doesn't literally appear as \"key\" in the raw text (unicode-escaped) falls back to line 1", () => {
+	const projects = [{ name: "acme", repo: "org/acme" }];
+	// The parsed key is "acme", but the raw JSON text spells it with a
+	// unicode escape (`acme`) — a real, if rare, way a manifest can be
+	// hand-edited or generated such that lineOf's naive `"${key}"` substring
+	// search never finds it, exercising its own `?? 1` fallback.
+	const manifestText = String.raw`{"overrides":{"a\u0063me":"1.0.0"}}`;
+	const fs = {
+		readdirSync: (dir) => (dir === "/fake-repo-escaped" ? [{ name: "package.json", isDirectory: () => false, isFile: () => true }] : []),
+		readFileSync: () => manifestText,
+	};
+	const result = inferNextSteps({ repoRoot: "/fake-repo-escaped", fs, projects });
+	const hit = (result.byProject.acme || []).find((h) => h.signal === "override");
+	ok("the override hit still fires despite the unicode-escaped key", Boolean(hit), JSON.stringify(result.byProject));
+	ok("lineOf's not-found fallback lands on line 1, never a thrown/undefined line", hit?.line === 1, JSON.stringify(hit));
 });

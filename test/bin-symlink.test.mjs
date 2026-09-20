@@ -41,3 +41,17 @@ test('importing the bin as a library prints nothing (main() does not run)', () =
   });
   assert.equal(output, '');
 });
+
+test('isMain(): an unresolvable process.argv[1] (realpathSync throws) degrades to "not main", never a crash', () => {
+  // realpathSync('') resolves to the CWD rather than throwing (so the
+  // "import as a library" test above never touches this catch at all) —
+  // forcing the actual throw needs an argv[1] that looks like a real path
+  // but doesn't exist. process.argv is mutable at runtime, so a wrapper
+  // script can set it to a nonexistent absolute path before dynamically
+  // importing the real bin, exercising isMain()'s own catch with the exact
+  // realpathSync call it makes, no source change needed.
+  const binUrl = pathToFileURL(BIN_PATH).href;
+  const code = `process.argv[1] = '/definitely/does/not/exist/${Date.now()}'; import(${JSON.stringify(binUrl)}).then(() => { console.log('IMPORTED_OK'); });`;
+  const output = execFileSync(process.execPath, ['-e', code], { encoding: 'utf8' });
+  assert.equal(output.trim(), 'IMPORTED_OK');
+});

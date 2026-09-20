@@ -219,6 +219,12 @@ test('an absolute stateDir outside repoRoot resolves with no throw', () => {
   assert.equal(config.stateDir, '/elsewhere/state');
 });
 
+test('a stateDir that expands to an empty string is returned as-is (never absolute-checked or thrown on)', () => {
+  const fs = createFakeFs({ '/repo/.osstrich.json': JSON.stringify({ stateDir: '' }) });
+  const config = loadConfig({ repoRoot, fs, env: {}, homedir });
+  assert.equal(config.stateDir, '');
+});
+
 test('a wrong-typed value throws a named CONFIG error', () => {
   const fs = createFakeFs({
     '/repo/.osstrich.json': JSON.stringify({ maxFileBytes: 'not-a-number' }),
