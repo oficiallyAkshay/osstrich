@@ -1,0 +1,53 @@
+# CodeQL scans the JavaScript sources and the repository's own GitHub Actions
+# workflows for known vulnerability patterns. Results land in the Security
+# tab rather than blocking a merge, so a finding is triaged, not a gate.
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, on a minute and a day the other two schedules here do not use
+    # — clonometer takes 17 past daily and scorecard 38 past on Wednesday —
+    # so none of them compete for a runner.
+    - cron: "51 4 * * 1"
+
+permissions: {}
+
+concurrency:
+  group: codeql-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    # Code scanning needs Advanced Security on a private repo. Skip only
+    # when we positively know the repo is private, so a payload without
+    # this context (e.g. schedule) runs rather than silently skips; a run
+    # while still private just fails loudly instead.
+    if: github.event.repository.visibility != 'private'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # osstrich is plain ESM JavaScript; the actions pack covers the
+        # workflows in this directory.
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        with:
+          languages: ${{ matrix.language }}
+
+      - uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        with:
+          category: /language:${{ matrix.language }}
