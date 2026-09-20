@@ -155,3 +155,11 @@ osstrich status
 |    retired                    |  |    claim re-checked           |
 +-------------------------------+  +-------------------------------+
 ```
+
+## Security
+
+osstrich opens real pull requests against real repositories, using
+whatever `gh` auth and agent CLI you already have. It never sees or
+stores a credential itself, never touches your own repo's settings, and
+scrubs every diff with `gitleaks` before it is proposed. Full scope and
+how to report a vulnerability: [SECURITY.md](SECURITY.md).
