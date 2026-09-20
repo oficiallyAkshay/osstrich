@@ -14,10 +14,16 @@ on:
 permissions: {}
 
 concurrency:
-  group: scorecard-${{ github.ref }}
+  group: scorecard-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:
+    # Scorecard requires a public repo. Skip only when we positively know
+    # the repo is private, so a payload without this context (e.g.
+    # schedule) runs rather than silently skips; a run while still
+    # private just fails loudly instead.
+    if: github.event.repository.visibility != 'private'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

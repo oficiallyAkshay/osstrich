@@ -5,11 +5,14 @@ name: release
 on:
   push:
     tags: ["v*"]
-permissions:
-  contents: write
+permissions: {}
 jobs:
   attach:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # `gh release create` writes the release and uploads the tarball to it.
+      contents: write
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v6
       - run: npm ci
