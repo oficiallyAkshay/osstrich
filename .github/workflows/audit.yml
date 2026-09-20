@@ -1,0 +1,42 @@
+# The dependency audit split out of ci.yml: it has no reason to run on every
+# pull request, only when the dependency set can have changed or on a
+# schedule that catches an advisory published after the fact. Not required
+# by the branch ruleset; a finding here is triaged, not a merge gate.
+name: audit
+
+on:
+  schedule:
+    # Weekly, off the other scheduled workflows' own minutes so none of
+    # them compete for a runner.
+    - cron: "51 6 * * 2"
+  pull_request:
+    paths:
+      - package-lock.json
+
+permissions: {}
+
+concurrency:
+  group: audit-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - run: npm ci
+
+      # Audit the resolved dependency set (package-lock.json) against the
+      # advisory database. low is the floor npm's own levels go to, so
+      # nothing above it is left unchecked; a known vulnerability at or
+      # above it fails the job.
+      - name: dependency audit
+        run: npm audit --audit-level=low
