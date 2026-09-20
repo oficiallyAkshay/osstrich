@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import * as prompts from '@clack/prompts';
 import { loadEnv } from '../lib/env.mjs';
-import { OsstrichError, formatFailure } from '../lib/errors.mjs';
+import { formatFailure } from '../lib/errors.mjs';
 import { dispatchCore } from '../lib/cli-dispatch.mjs';
 import * as initCommand from '../lib/commands/init.mjs';
 import * as configCommand from '../lib/commands/config.mjs';
