@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     steps:
-      - uses: oficiallyAkshay/clonometer@208c2cc913d1d1ea7f76f4f9cce759073cd744f5   # v1.0.1
+      - uses: oficiallyAkshay/clonometer@bc07967d1aafcbf67af9eb0ad230650de0be8ca4 # v1.1.0
         with:
           token: ${{ secrets.TRAFFIC_TOKEN }}
           metrics: clones,views
