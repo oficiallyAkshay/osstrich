@@ -19,13 +19,18 @@
   "license": "MIT",
   "scripts": {
     "test": "node --test --experimental-test-coverage --test-coverage-include=lib/** --test-coverage-include=bin/** --test-coverage-lines=98 --test-coverage-branches=85 --test-coverage-functions=96 --test-reporter=lcov --test-reporter-destination=coverage.lcov --test-reporter=spec --test-reporter-destination=stdout test/**/*.test.mjs",
-    "check": "node --test 'test/**/*.test.mjs'"
+    "check": "node --test 'test/**/*.test.mjs'",
+    "lint": "eslint ."
   },
   "dependencies": {
-    "execa": "10.0.1",
-    "cockatiel": "4.0.0",
-    "zod": "4.5.4",
     "@clack/prompts": "1.7.0",
-    "@dotenvx/dotenvx": "2.23.0"
+    "@dotenvx/dotenvx": "2.23.0",
+    "cockatiel": "4.0.0",
+    "execa": "10.0.1",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5"
   }
 }
