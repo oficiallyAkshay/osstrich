@@ -2,6 +2,7 @@
   "name": "osstrich",
   "version": "0.0.1",
   "description": "Plan-to-PR upstream contribution workflow: discover what to give back, then build it to a merged pull request.",
+  "private": true,
   "type": "module",
   "bin": {
     "osstrich": "bin/osstrich.mjs"
