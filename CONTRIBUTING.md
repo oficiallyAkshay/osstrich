@@ -56,3 +56,20 @@ Symptom, then root cause, then what changed, then what ran. Short beats thorough
 ## Releases
 
 A merge never cuts a release. A release is cut on purpose, by pushing a version tag (`git tag -a v0.0.N && git push origin v0.0.N`); the tag-triggered workflow runs the tests, packs the package, and attaches it to the release. Versions stay in the 0.0.x series until the maintainer says otherwise.
+
+## What CI runs
+
+| Check | Runs on | Blocks merge |
+| --- | --- | --- |
+| test suite with coverage | `test`, on Node 22 and 24 | yes |
+| coverage upload | `test`, Node 24 only | no |
+| pre-commit hooks (eslint, actionlint, zizmor, gitleaks) and pinact | `lint` | yes |
+| secrets scan over the whole history (gitleaks-action, not a pre-commit hook here since it needs history a hook never sees) | `lint` | yes |
+| gate | `ci` | yes |
+| README, CONTRIBUTING and docs check, every count badge run and verified | `readme check`, every push, pull request and weekly | no |
+| dependency review of manifest changes | `dependency-review`, pull requests only | no |
+| dependency audit (`npm audit`) | `audit`, weekly and on a pull request touching `package-lock.json` | no |
+| dependabot auto-merge | pull requests from Dependabot | no, it only arms auto-merge; the checks above still gate the merge itself |
+| codeql | push, pull request and weekly | no, results in the Security tab |
+| scorecard | push to main and weekly | no |
+| clonometer clone/view counter | daily schedule | no |
