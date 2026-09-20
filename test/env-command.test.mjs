@@ -36,7 +36,7 @@ test('env list never prints a value, only presence', async () => {
   assert.match(stdout.text, /OSSTRICH_MODEL unset/);
   assert.match(stdout.text, /OSSTRICH_AGENT unset/);
   assert.match(stdout.text, /GH_TOKEN set/);
-  assert.doesNotMatch(stdout.text, /=/);
+  assert.doesNotMatch(stdout.text, /[=]/);
   assert.doesNotMatch(stdout.text, new RegExp(SECRET));
 });
 

@@ -18,7 +18,7 @@ test('loadConfig applies every built-in default when no file exists', () => {
   assert.deepEqual(config.ignore, []);
   assert.deepEqual(config.skipDirs, ['node_modules', '.git', 'coverage', 'dist', 'build']);
   assert.deepEqual(config.stopwords, []);
-  assert.equal(config.maxFileBytes, 262144);
+  assert.equal(config.maxFileBytes, 262_144);
   assert.deepEqual(config.hooks, { runEnd: null });
   assert.deepEqual(config.agent, { command: null, model: null });
 });
@@ -133,7 +133,7 @@ test('a configured relative path for classification/scrubTerms/hosts resolves ag
     fs,
     env: {},
     homedir,
-    ...{},
+    
   });
   const withPatch = loadConfig({
     repoRoot,
@@ -241,7 +241,7 @@ test('saveConfig creates the file when absent and deep-merges into it when prese
   const second = saveConfig({ repoRoot, fs, patch: { agent: { model: 'sonnet' } } });
   assert.deepEqual(second, { agent: { command: 'claude -p', model: 'sonnet' } });
 
-  const onDisk = JSON.parse(fs.readFileSync('/repo/.osstrich.json'));
+  const onDisk = JSON.parse(fs.readFileSync('/repo/.osstrich.json', 'utf8'));
   assert.deepEqual(onDisk, { agent: { command: 'claude -p', model: 'sonnet' } });
 });
 

@@ -14,8 +14,8 @@ test('writeStatus writes atomically: no leftover temp file, final file readable'
   const fs = createFakeFs();
   writeStatus('/state/run-1', { phases: [] }, { fs });
   assert.deepEqual(readStatus('/state/run-1', { fs }), { phases: [] });
-  const leftoverTemp = [...fs._files.keys()].some((key) => key.includes('.tmp-'));
-  assert.equal(leftoverTemp, false);
+  const isLeftoverTemp = fs._files.keys().some((key) => key.includes('.tmp-'));
+  assert.equal(isLeftoverTemp, false);
 });
 
 test('markPhase inserts a new phase then updates it in place', () => {

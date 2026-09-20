@@ -59,15 +59,15 @@ test("osstrich-upstream: shortlistUpstream over a fake gh", async () => {
 			}
 			inFlight += 1;
 			maxInFlight = Math.max(maxInFlight, inFlight);
-			if (concurrencyProbe) concurrencyProbe(inFlight);
-			await new Promise((resolve) => setTimeout(resolve, 5));
+			if (concurrencyProbe) {concurrencyProbe(inFlight);}
+			await new Promise((resolve) => {setTimeout(resolve, 5);});
 			inFlight -= 1;
-			const kind = args[0]; // "issue" | "pr"
+			const [kind] = args; // "issue" | "pr"
 			const repoIdx = args.indexOf("--repo");
 			const repo = args[repoIdx + 1];
 			const entry = repoResponses[repo];
-			if (!entry) return { stdout: "[]" };
-			if (entry.throwFor === kind) throw new Error(`gh ${kind} list exploded for ${repo}`);
+			if (!entry) {return { stdout: "[]" };}
+			if (entry.throwFor === kind) {throw new Error(`gh ${kind} list exploded for ${repo}`);}
 			return { stdout: JSON.stringify(entry[kind] || []) };
 		};
 		return { exec, getMaxInFlight: () => maxInFlight, getRateLimitCalls: () => rateLimitCalls.length };
@@ -114,7 +114,7 @@ test("osstrich-upstream: shortlistUpstream over a fake gh", async () => {
 		);
 		ok(
 			"a sub-5-char keyword ('race') never fires a match, even though the title contains it verbatim",
-			!result.byProject.alpha.matches.some((m) => m.keyword === "race"),
+			result.byProject.alpha.matches.every((m) => m.keyword !== "race"),
 			JSON.stringify(result.byProject.alpha.matches),
 		);
 		ok(
@@ -122,7 +122,7 @@ test("osstrich-upstream: shortlistUpstream over a fake gh", async () => {
 			result.byProject.beta.matches.some((m) => m.keyword === "#42" && m.item === "https://github.com/o/beta/issues/42"),
 			JSON.stringify(result.byProject.beta.matches),
 		);
-		ok("no match on the unrelated alpha issue", !result.byProject.alpha.matches.some((m) => m.item.endsWith("/issues/5")));
+		ok("no match on the unrelated alpha issue", result.byProject.alpha.matches.every((m) => !m.item.endsWith("/issues/5")));
 		ok("budget.checked counts both projects", result.budget.checked === 2);
 		ok("budget.remainingAtStart records the first reading", result.budget.remainingAtStart === 5000);
 		ok("budget not stopped when remaining is healthy", result.budget.stopped === false);
@@ -171,14 +171,14 @@ test("osstrich-upstream: shortlistUpstream over a fake gh", async () => {
 		const projects = [{ name: "gamma", repo: "o/gamma" }];
 		const repoResponses = { "o/gamma": { throwFor: "issue" } };
 		const { exec } = makeExec({ rateLimitRemaining: () => 5000, repoResponses });
-		let threw = false;
+		let isThrew = false;
 		let result;
 		try {
 			result = await shortlistUpstream({ projects, inferred: {}, exec });
 		} catch {
-			threw = true;
+			isThrew = true;
 		}
-		ok("a failing gh call never throws out of shortlistUpstream", !threw);
+		ok("a failing gh call never throws out of shortlistUpstream", !isThrew);
 		ok("the failed repo gets an empty issues list", result.byProject.gamma.issues.length === 0);
 		ok("the failure is recorded as a gap", result.gaps.some((g) => g.includes("o/gamma")), JSON.stringify(result.gaps));
 	}
@@ -288,7 +288,7 @@ test("osstrich-run: openRun / writePartial / finishRun", async () => {
 			// demonstrated against the real fs.
 			readdirSync: () => [],
 			mkdirSync: (dir, opts) => {
-				if (opts?.recursive) return; // idempotent parent (runsDir) creation
+				if (opts?.recursive) {return;} // idempotent parent (runsDir) creation
 				if (madeDirs.has(dir)) {
 					const err = new Error(`EEXIST: ${dir}`);
 					err.code = "EEXIST";
@@ -299,7 +299,10 @@ test("osstrich-run: openRun / writePartial / finishRun", async () => {
 			readFileSync: () => {
 				throw new Error("ENOENT");
 			},
-			writeFileSync: () => {},
+			writeFileSync: () => {
+				// No-op: this scenario only exercises the read-fails-with-ENOENT
+				// path above; nothing here asserts on a write.
+			},
 		};
 		const raceRunsDir = "/fake/race-runs-dir";
 		const raceNow = () => Date.parse("2026-09-06T12:00:00Z");
@@ -355,28 +358,28 @@ test("osstrich-run: openRun / writePartial / finishRun", async () => {
 		const throwingHook = async () => {
 			throw new Error("hook boom");
 		};
-		let hookThrew = false;
+		let isHookThrew = false;
 		let throwingPath;
 		try {
 			throwingPath = await finishRun(hookRun.dir, { funded: 2 }, { fs: nodeFs, now, onRunEnd: throwingHook });
 		} catch {
-			hookThrew = true;
+			isHookThrew = true;
 		}
-		ok("finishRun never propagates a throwing onRunEnd hook", !hookThrew);
+		ok("finishRun never propagates a throwing onRunEnd hook", !isHookThrew);
 		const linesAfterThrow = readFileSync(throwingPath, "utf8").trim().split("\n");
 		ok("the record's own line still lands (2 real records + 1 gap line)", linesAfterThrow.length === 3, JSON.stringify(linesAfterThrow));
 		const gapLine = JSON.parse(linesAfterThrow[2]);
 		ok("the hook failure is recorded as a gap line naming the failure, not thrown", gapLine.gap?.includes("hook boom"), JSON.stringify(gapLine));
 		ok("the gap line still names the run_id", gapLine.run_id === basename(hookRun.dir));
 
-		let calledWithoutHook = false;
+		let isCalledWithoutHook;
 		try {
 			await finishRun(hookRun.dir, {}, { fs: nodeFs, now });
-			calledWithoutHook = true;
+			isCalledWithoutHook = true;
 		} catch {
-			calledWithoutHook = false;
+			isCalledWithoutHook = false;
 		}
-		ok("finishRun with no onRunEnd at all is a plain no-op on the hook", calledWithoutHook);
+		ok("finishRun with no onRunEnd at all is a plain no-op on the hook", isCalledWithoutHook);
 	}
 }
 });
@@ -525,7 +528,7 @@ test("discover --resume: a run whose partials already exist prints one skip line
 	ok("a --resume discover still exits 0", code === 0);
 	ok("--resume reruns none of the code phases", secondCalls.inventory === 0 && secondCalls.rank === 0 && secondCalls.infer === 0 && secondCalls.upstream === 0);
 	for (const phase of ["inventory", "rank", "infer", "upstream", "verdict"]) {
-		ok(`--resume prints a skip line for ${phase}`, new RegExp(`osstrich ${phase}: skipped \\(partial present\\)`).test(secondStdout.text), secondStdout.text);
+		ok(`--resume prints a skip line for ${phase}`, new RegExp(String.raw`osstrich ${phase}: skipped \(partial present\)`).test(secondStdout.text), secondStdout.text);
 	}
 });
 
@@ -651,27 +654,27 @@ test("discover: headless picks the single best funded row (by evidence count, th
 
 test("discover: no TTY behaves as headless even without --headless", async () => {
 	const runsDir = mkdtempSync(join(tmpdir(), "osstrich-cli-notty-"));
-	let interactivePromptUsed = false;
+	let isInteractivePromptUsed = false;
 	const { deps, calls } = makeCodePhaseDeps({
 		runsDir,
 		overrides: {
 			isTTY: false,
 			prompts: createFakePrompts({
 				multiselectAnswer: (() => {
-					interactivePromptUsed = true;
+					isInteractivePromptUsed = true;
 					return [];
 				})(),
 			}),
 			runAgentStage: async (args) => {
-				if (args.stage === "verdict") writeFundedVerdict(args.runDir);
-				else writeFileSync(join(args.runDir, `${args.stage}.md`), "prs_opened: 0\n");
+				if (args.stage === "verdict") {writeFundedVerdict(args.runDir);}
+				else {writeFileSync(join(args.runDir, `${args.stage}.md`), "prs_opened: 0\n");}
 				return { ok: true, exitCode: 0, logPath: join(args.runDir, `${args.stage}.log`) };
 			},
 		},
 	});
 	await main(["discover", "--slug", "nottytest"], deps);
 	ok("no TTY and no --headless still runs exactly one build stage (headless default)", calls.runAgentStage.filter((c) => c.stage.startsWith("build-")).length === 1);
-	ok("the interactive multiselect prompt was never actually invoked", interactivePromptUsed === false || calls.runAgentStage.length > 0);
+	ok("the interactive multiselect prompt was never actually invoked", isInteractivePromptUsed === false || calls.runAgentStage.length > 0);
 });
 
 test("build: with a target opens a new run directory named for it and runs the build stage", async () => {
@@ -768,7 +771,11 @@ test("defaultDeps(): real wiring exposes every contract key this CLI needs", asy
 		"agentModel",
 		"skillDir",
 	];
-	ok("defaultDeps() exposes every contract key", requiredKeys.every((k) => k in deps), Object.keys(deps).join(","));
+	ok(
+		"defaultDeps() exposes every contract key",
+		requiredKeys.every((k) => Object.hasOwn(deps, k)),
+		Object.keys(deps).join(","),
+	);
 	ok("defaultDeps().runsDir defaults under the given homedir (~/.osstrich)", deps.runsDir === join(homedir, ".osstrich"), deps.runsDir);
 	ok("defaultDeps().repoRoot is the given cwd", deps.repoRoot === repoRoot);
 	ok("defaultDeps().agentCommand is null with no .osstrich.json and no env override", deps.agentCommand === null);
@@ -812,13 +819,10 @@ function makeScrubDeps(runsDir) {
 		runsDir,
 		overrides: {
 			scrubText: async ({ text }) => {
-				if (text.includes("ENGINEBOOM")) return { ok: false, error: "gitleaks exec failed: boom" };
+				if (text.includes("ENGINEBOOM")) {return { ok: false, error: "gitleaks exec failed: boom" };}
 				return { ok: !text.includes("SECRETNAME"), findings: text.includes("SECRETNAME") ? [{ term: "SECRETNAME" }] : [] };
 			},
-			scrubPaths: async ({ paths }) => {
-				if (paths.some((p) => p.includes("ENGINEBOOM"))) return { ok: false, findings: [], error: "gitleaks exec failed: boom" };
-				return { ok: true, findings: [], paths };
-			},
+			scrubPaths: async ({ paths }) => paths.some((p) => p.includes("ENGINEBOOM")) ? { ok: false, findings: [], error: "gitleaks exec failed: boom" } : { ok: true, findings: [], paths },
 		},
 	});
 }
@@ -846,7 +850,7 @@ test("scrub: findings, clean, paths, an engine failure, --help, and an unrecogni
 	ok("a scan-engine failure exits 2, distinct from 0 (clean) and 1 (findings)", failedCode === 2);
 	ok(
 		"a scan-engine failure prints the FAILED line to stderr, never stdout",
-		stderr.lines.some((l) => l === "osstrich scrub: FAILED — gitleaks exec failed: boom\n") && stdout.lines.length === 0,
+		stderr.lines.includes("osstrich scrub: FAILED — gitleaks exec failed: boom\n") && stdout.lines.length === 0,
 		JSON.stringify({ stdout: stdout.lines, stderr: stderr.lines }),
 	);
 
@@ -869,7 +873,7 @@ test("recheck: prints every bucket's count, including empty ones", async () => {
 		runsDir,
 		overrides: {
 			extractClaims: ({ files }) =>
-				files.length ? [{ file: files[0], line: 1, text: "claim", url: "https://github.com/o/r/pull/1", kind: "pr", condition: true }] : [],
+				files.length > 0 ? [{ file: files[0], line: 1, text: "claim", url: "https://github.com/o/r/pull/1", kind: "pr", condition: true }] : [],
 			recheckClaims: async ({ claims }) => ({ fired: claims, contradicted: [], unconfirmable: [], current: [] }),
 		},
 	});
@@ -891,7 +895,7 @@ test("record: --dir is required, and appends the session's counts to run-record.
 	const recordCode = await main(["record", "--dir", dir, "--funded", "3", "--deferred", "1"], deps);
 	ok("record --dir with counts exits 0", recordCode === 0);
 	const lines = readFileSync(join(dir, "run-record.jsonl"), "utf8").trim().split("\n");
-	const last = JSON.parse(lines[lines.length - 1]);
+	const last = JSON.parse(lines.at(-1));
 	ok("record appends the session's funded count", last.funded === 3);
 	ok("record appends the session's deferred count", last.deferred === 1);
 });

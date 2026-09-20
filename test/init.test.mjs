@@ -9,7 +9,7 @@ const homedir = '/home/tester';
 
 function makeExec(found) {
   return async (name) => {
-    if (found.has(name)) return { exitCode: 0 };
+    if (found.has(name)) {return { exitCode: 0 };}
     const err = new Error(`ENOENT: ${name}`);
     err.code = 'ENOENT';
     throw err;
@@ -45,7 +45,7 @@ test('init --yes with every tool found writes the detected agent command', async
   assert.match(stdout.text, /dotenvx: found/);
   assert.match(stdout.text, /agent: claude \(claude -p\)/);
 
-  const saved = JSON.parse(deps.fs.readFileSync('/repo/.osstrich.json'));
+  const saved = JSON.parse(deps.fs.readFileSync('/repo/.osstrich.json', 'utf8'));
   assert.equal(saved.agent.command, 'claude -p');
   assert.equal(saved.agent.model, undefined);
 
@@ -81,7 +81,7 @@ test('init --yes with nothing found writes no agent block and reports every tool
   assert.match(stdout.text, /dotenvx: not found/);
   assert.match(stdout.text, /agent: not found/);
 
-  const saved = JSON.parse(deps.fs.readFileSync('/repo/.osstrich.json'));
+  const saved = JSON.parse(deps.fs.readFileSync('/repo/.osstrich.json', 'utf8'));
   assert.equal(saved.agent, undefined);
   // No agent tool means no provider variable to report on.
   assert.doesNotMatch(stdout.text, /ANTHROPIC_API_KEY/);
@@ -160,7 +160,7 @@ test('init interactive accepts typed answers over the detected defaults', async 
   const code = await initRun([], deps);
 
   assert.equal(code, 0);
-  const saved = JSON.parse(fs.readFileSync('/repo/.osstrich.json'));
+  const saved = JSON.parse(fs.readFileSync('/repo/.osstrich.json', 'utf8'));
   assert.equal(saved.agent.command, 'aider');
   assert.equal(saved.agent.model, 'gpt-5');
 });

@@ -46,11 +46,11 @@ function gitleaksBinPath(repoRoot) {
 // node:test's own `t.skip()`, not a trivially-true assertion).
 function findGitleaksBin() {
 	const vendored = gitleaksBinPath(process.cwd());
-	if (existsSync(vendored)) return vendored;
+	if (existsSync(vendored)) {return vendored;}
 	for (const dir of (process.env.PATH || "").split(delimiter)) {
-		if (!dir) continue;
+		if (!dir) {continue;}
 		const candidate = join(dir, "gitleaks");
-		if (existsSync(candidate)) return candidate;
+		if (existsSync(candidate)) {return candidate;}
 	}
 	return null;
 }
@@ -87,7 +87,7 @@ test("scrubText: gitleaks config generation — comments/blanks skipped, literal
 		ok("one [[rules]] block per parsed term (comments/blanks dropped, 4 of 7 lines)", (capturedConfig.match(/\[\[rules\]\]/g) || []).length === 4, capturedConfig);
 		ok(
 			"a literal term's regex metacharacters are escaped and case-insensitive",
-			capturedConfig.includes("regex = '''(?i)someone@example\\.test'''"),
+			capturedConfig.includes(String.raw`regex = '''(?i)someone@example\.test'''`),
 			capturedConfig,
 		);
 		ok("a plain literal term gets a case-insensitive wrapper", capturedConfig.includes("regex = '''(?i)Widgetco'''"), capturedConfig);
@@ -97,7 +97,7 @@ test("scrubText: gitleaks config generation — comments/blanks skipped, literal
 		// The finding's rule id (RuleID, `id = "..."` in the generated config)
 		// must never carry the term's own text — see lib/scrub.mjs's
 		// slugifyTermId doc for why (a scrub finding is printed to stdout/logs).
-		const ids = [...capturedConfig.matchAll(/^id = "([^"]+)"$/gm)].map((m) => m[1]);
+		const ids = capturedConfig.matchAll(/^id = "(?<id>[^"]+)"$/gm).map((m) => m.groups.id).toArray();
 		ok("one rule id per parsed term", ids.length === 4, JSON.stringify(ids));
 		ok("every generated rule id is term-<n> only, never the term's own text", ids.every((id) => /^term-\d+$/.test(id)), JSON.stringify(ids));
 	}
@@ -105,10 +105,10 @@ test("scrubText: gitleaks config generation — comments/blanks skipped, literal
 
 test("scrubText: fake exec writes a canned report, real gitleaks never invoked", async () => {
 	{
-		let execCalled = false;
+		let isExecCalled = false;
 		const fakeFindings = [{ RuleID: "term-1-gadget", StartLine: 3, Match: "Gadget" }];
 		const fakeExec = async (_cmd, args) => {
-			execCalled = true;
+			isExecCalled = true;
 			const reportIdx = args.indexOf("--report-path");
 			writeFileSync(args[reportIdx + 1], JSON.stringify(fakeFindings));
 			return { stdout: "", stderr: "" };
@@ -119,7 +119,7 @@ test("scrubText: fake exec writes a canned report, real gitleaks never invoked",
 		ok("a bare dir with no vendored gitleaks has no binary present", !existsSync(gitleaksBinPath(bareRoot)));
 
 		const result = await scrubText({ text: "mentions Gadget", termsText: "Gadget", exec: fakeExec, repoRoot: bareRoot });
-		ok("fake exec was called instead of a real spawn", execCalled === true);
+		ok("fake exec was called instead of a real spawn", isExecCalled === true);
 		ok("findings are mapped to {rule, line, snippet}", result.findings.length === 1 && result.findings[0].rule === "term-1-gadget", JSON.stringify(result));
 		ok("finding line comes from the report", result.findings[0].line === 3, JSON.stringify(result));
 		ok("a 6-char match snippet is masked to first-2…last-2, never the raw text", result.findings[0].snippet === "Ga…et", JSON.stringify(result));
@@ -182,14 +182,14 @@ test("scrubText: exec failure is soft — {ok:false, error}, never a throw", asy
 		const throwingExec = async () => {
 			throw new Error("spawn ENOENT");
 		};
-		let threw = false;
+		let isThrew = false;
 		let result;
 		try {
 			result = await scrubText({ text: "x", termsText: "Widgetco", exec: throwingExec, repoRoot: tmpRoot });
 		} catch {
-			threw = true;
+			isThrew = true;
 		}
-		ok("scrubText never throws on an exec failure", threw === false);
+		ok("scrubText never throws on an exec failure", isThrew === false);
 		ok("failure comes back as {ok:false, error}", result.ok === false && typeof result.error === "string" && result.error.length > 0, JSON.stringify(result));
 	}
 });
@@ -417,9 +417,9 @@ test("recheckClaims: a merged PR computes `published` from the repo's own releas
 		const claims = [{ file: "f.md", line: 14, text: "unpin once an official release contains PR #185", url: "https://github.com/o/r/pull/185", kind: "pr", condition: true }];
 
 		const fakeExecPublished = async (_cmd, args) => {
-			const endpoint = args[1];
-			if (endpoint === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };
-			if (endpoint === "repos/o/r/pulls/185") return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-07-19T14:03:51Z" }) };
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };}
+			if (endpoint === "repos/o/r/pulls/185") {return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-07-19T14:03:51Z" }) };}
 			if (endpoint === "repos/o/r/releases?per_page=5") {
 				return {
 					stdout: JSON.stringify([
@@ -435,9 +435,9 @@ test("recheckClaims: a merged PR computes `published` from the repo's own releas
 		ok("published is true when a release postdates the merge", result.fired[0].live.published === true, JSON.stringify(result.fired[0]));
 
 		const fakeExecUnpublished = async (_cmd, args) => {
-			const endpoint = args[1];
-			if (endpoint === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };
-			if (endpoint === "repos/o/r/pulls/185") return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-07-19T14:03:51Z" }) };
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };}
+			if (endpoint === "repos/o/r/pulls/185") {return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-07-19T14:03:51Z" }) };}
 			if (endpoint === "repos/o/r/releases?per_page=5") {
 				return { stdout: JSON.stringify([{ tag_name: "v0.13.0", published_at: "2026-06-01T00:00:00Z", prerelease: false, draft: false }]) };
 			}
@@ -448,9 +448,9 @@ test("recheckClaims: a merged PR computes `published` from the repo's own releas
 		ok("published is false when every release predates the merge", resultUnpublished.fired[0].live.published === false, JSON.stringify(resultUnpublished.fired[0]));
 
 		const fakeExecPrereleaseOnly = async (_cmd, args) => {
-			const endpoint = args[1];
-			if (endpoint === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };
-			if (endpoint === "repos/o/r/pulls/185") return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-07-19T14:03:51Z" }) };
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };}
+			if (endpoint === "repos/o/r/pulls/185") {return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-07-19T14:03:51Z" }) };}
 			if (endpoint === "repos/o/r/releases?per_page=5") {
 				return { stdout: JSON.stringify([{ tag_name: "v0.15.0-rc1", published_at: "2026-08-29T00:00:00Z", prerelease: true, draft: false }]) };
 			}
@@ -463,10 +463,10 @@ test("recheckClaims: a merged PR computes `published` from the repo's own releas
 		// must soft-fail to published:false, never take the whole claim down
 		// (a merged PR still fires; `published` is a best-effort add-on).
 		const fakeExecReleasesThrow = async (_cmd, args) => {
-			const endpoint = args[1];
-			if (endpoint === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };
-			if (endpoint === "repos/o/r/pulls/185") return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-07-19T14:03:51Z" }) };
-			if (endpoint === "repos/o/r/releases?per_page=5") throw new Error("network error");
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };}
+			if (endpoint === "repos/o/r/pulls/185") {return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-07-19T14:03:51Z" }) };}
+			if (endpoint === "repos/o/r/releases?per_page=5") {throw new Error("network error");}
 			throw new Error(`unexpected endpoint ${endpoint}`);
 		};
 		const resultReleasesThrow = await recheckClaims({ claims, exec: fakeExecReleasesThrow });
@@ -479,10 +479,10 @@ test("recheckClaims: an ambiguous <owner>/<repo>#<n> falls back to an issue look
 	{
 		const claims = [{ file: "f.md", line: 1, text: "retire once org/widget#12 ships", url: "https://github.com/org/widget/pull/12", kind: "pr", condition: true, ambiguous: true }];
 		const fakeExec = async (_cmd, args) => {
-			const endpoint = args[1];
-			if (endpoint === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };
-			if (endpoint === "repos/org/widget/pulls/12") throw new Error("gh: Not Found (HTTP 404)");
-			if (endpoint === "repos/org/widget/issues/12") return { stdout: JSON.stringify({ state: "closed" }) };
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };}
+			if (endpoint === "repos/org/widget/pulls/12") {throw new Error("gh: Not Found (HTTP 404)");}
+			if (endpoint === "repos/org/widget/issues/12") {return { stdout: JSON.stringify({ state: "closed" }) };}
 			throw new Error(`unexpected endpoint ${endpoint}`);
 		};
 		const result = await recheckClaims({ claims, exec: fakeExec });
@@ -491,9 +491,9 @@ test("recheckClaims: an ambiguous <owner>/<repo>#<n> falls back to an issue look
 		// A non-ambiguous PR claim must NOT get this fallback — its 404 is real.
 		const nonAmbiguousClaims = [{ file: "f.md", line: 2, text: "x", url: "https://github.com/org/widget/pull/13", kind: "pr", condition: false }];
 		const fakeExec2 = async (_cmd, args) => {
-			const endpoint = args[1];
-			if (endpoint === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };
-			if (endpoint === "repos/org/widget/pulls/13") throw new Error("gh: Not Found (HTTP 404)");
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };}
+			if (endpoint === "repos/org/widget/pulls/13") {throw new Error("gh: Not Found (HTTP 404)");}
 			throw new Error(`unexpected endpoint ${endpoint} (issue fallback must not fire for a non-ambiguous claim)`);
 		};
 		const result2 = await recheckClaims({ claims: nonAmbiguousClaims, exec: fakeExec2 });
@@ -504,10 +504,9 @@ test("recheckClaims: an ambiguous <owner>/<repo>#<n> falls back to an issue look
 		// failure rather than the issue-fallback's own error.
 		const bothFailClaims = [{ file: "f.md", line: 3, text: "retire once org/ghost#99 ships", url: "https://github.com/org/ghost/pull/99", kind: "pr", condition: true, ambiguous: true }];
 		const fakeExecBothFail = async (_cmd, args) => {
-			const endpoint = args[1];
-			if (endpoint === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };
-			if (endpoint === "repos/org/ghost/pulls/99") throw new Error("gh: Not Found (HTTP 404)");
-			if (endpoint === "repos/org/ghost/issues/99") throw new Error("gh: Not Found (HTTP 404)");
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };}
+			if ((endpoint === "repos/org/ghost/pulls/99") || (endpoint === "repos/org/ghost/issues/99")) {throw new Error("gh: Not Found (HTTP 404)");}
 			throw new Error(`unexpected endpoint ${endpoint}`);
 		};
 		const result3 = await recheckClaims({ claims: bothFailClaims, exec: fakeExecBothFail });
@@ -536,15 +535,14 @@ test("recheckClaims: fired / contradicted / unconfirmable(404) / unconfirmable(n
 			{ file: "f.md", line: 5, text: "https://github.com/o/r/issues/9 is open right now", url: "https://github.com/o/r/issues/9", kind: "issue", condition: false },
 		];
 		const fakeExec = async (_cmd, args) => {
-			const endpoint = args[1];
-			if (endpoint === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };
-			if (endpoint === "repos/o/r/pulls/1") return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-01-01T00:00:00Z" }) };
-			if (endpoint === "repos/o/r/pulls/2") return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-01-01T00:00:00Z" }) };
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };}
+			if ((endpoint === "repos/o/r/pulls/1") || (endpoint === "repos/o/r/pulls/2")) {return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-01-01T00:00:00Z" }) };}
 			// Both merged PRs (lines 1 and 2) trigger a `published` lookup now —
 			// no releases at all here, so both stay published: false.
-			if (endpoint === "repos/o/r/releases?per_page=5") return { stdout: JSON.stringify([]) };
-			if (endpoint === "repos/o/r/releases/tags/v9.9.9") throw new Error("gh: Not Found (HTTP 404)");
-			if (endpoint === "repos/o/r/issues/9") return { stdout: JSON.stringify({ state: "open" }) };
+			if (endpoint === "repos/o/r/releases?per_page=5") {return { stdout: JSON.stringify([]) };}
+			if (endpoint === "repos/o/r/releases/tags/v9.9.9") {throw new Error("gh: Not Found (HTTP 404)");}
+			if (endpoint === "repos/o/r/issues/9") {return { stdout: JSON.stringify({ state: "open" }) };}
 			throw new Error(`unexpected endpoint ${endpoint}`);
 		};
 		const result = await recheckClaims({ claims, exec: fakeExec });
@@ -571,8 +569,8 @@ test("recheckClaims: low rate limit stops the batch before any per-claim call", 
 		let calls = 0;
 		const fakeExec = async (_cmd, args) => {
 			calls += 1;
-			const endpoint = args[1];
-			if (endpoint === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: RATE_LIMIT_FLOOR - 1 } } }) };
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: RATE_LIMIT_FLOOR - 1 } } }) };}
 			throw new Error(`should not have called ${endpoint}`);
 		};
 		const result = await recheckClaims({ claims, exec: fakeExec });
@@ -583,18 +581,18 @@ test("recheckClaims: low rate limit stops the batch before any per-claim call", 
 
 test("recheckClaims: no-url claims never reach the rate_limit probe at all", async () => {
 	{
-		let execCalled = false;
+		let isExecCalled = false;
 		const fakeExec = async () => {
-			execCalled = true;
+			isExecCalled = true;
 			throw new Error("should never be called");
 		};
 		const emptyResult = await recheckClaims({ claims: [], exec: fakeExec });
-		ok("an empty claims array never calls exec", execCalled === false);
+		ok("an empty claims array never calls exec", isExecCalled === false);
 		ok("budget reports used:0 for an empty claims array", emptyResult.budget.used === 0 && emptyResult.budget.max > 0, JSON.stringify(emptyResult.budget));
 
 		const noUrlClaims = [{ file: "f.md", line: 1, text: "opened as an upstream PR", url: null, kind: "none", condition: true }];
 		const noUrlResult = await recheckClaims({ claims: noUrlClaims, exec: fakeExec });
-		ok("a claims list with no URLs at all never calls exec either", execCalled === false);
+		ok("a claims list with no URLs at all never calls exec either", isExecCalled === false);
 		ok("the no-url condition claim still lands in unconfirmable with the §57 reason", noUrlResult.unconfirmable[0]?.reason === "no checkable artifact", JSON.stringify(noUrlResult));
 	}
 });
@@ -603,7 +601,7 @@ test("recheckClaims: the rate_limit probe itself throwing lands every claim in u
 	{
 		const claims = [{ file: "f.md", line: 1, text: "x", url: "https://github.com/o/r/pull/1", kind: "pr", condition: false }];
 		const throwingRateLimitExec = async (_cmd, args) => {
-			if (args[1] === "rate_limit") throw new Error("network unreachable");
+			if (args[1] === "rate_limit") {throw new Error("network unreachable");}
 			throw new Error("should not reach a per-claim call");
 		};
 		const result = await recheckClaims({ claims, exec: throwingRateLimitExec });
@@ -619,7 +617,7 @@ test("recheckOneClaim: a claim url that fails to parse lands in unconfirmable", 
 	{
 		const claims = [{ file: "f.md", line: 1, text: "x", url: "https://example.com/not-a-github-url", kind: "pr", condition: false }];
 		const fakeExec = async (_cmd, args) => {
-			if (args[1] === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 5000 } } }) };
+			if (args[1] === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 5000 } } }) };}
 			throw new Error("should never call gh api for an unparseable url");
 		};
 		const result = await recheckClaims({ claims, exec: fakeExec });
@@ -637,10 +635,10 @@ test("recheckOneClaim: a contradicted assertion is checked BEFORE the fired shor
 			{ file: "f.md", line: 1, text: "Still open — will retire once this merges.", url: "https://github.com/o/r/pull/1", kind: "pr", condition: true },
 		];
 		const fakeExec = async (_cmd, args) => {
-			const endpoint = args[1];
-			if (endpoint === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };
-			if (endpoint === "repos/o/r/pulls/1") return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-01-01T00:00:00Z" }) };
-			if (endpoint === "repos/o/r/releases?per_page=5") return { stdout: JSON.stringify([]) };
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };}
+			if (endpoint === "repos/o/r/pulls/1") {return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-01-01T00:00:00Z" }) };}
+			if (endpoint === "repos/o/r/releases?per_page=5") {return { stdout: JSON.stringify([]) };}
 			throw new Error(`unexpected endpoint ${endpoint}`);
 		};
 		const result = await recheckClaims({ claims, exec: fakeExec });
@@ -655,10 +653,10 @@ test("recheckOneClaim: a contradicted assertion is checked BEFORE the fired shor
 		// land in `fired` — the reorder must not regress the plain fired path.
 		const noAssertionClaims = [{ file: "f.md", line: 2, text: "unpin once this merges", url: "https://github.com/o/r/pull/2", kind: "pr", condition: true }];
 		const fakeExec2 = async (_cmd, args) => {
-			const endpoint = args[1];
-			if (endpoint === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };
-			if (endpoint === "repos/o/r/pulls/2") return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-01-01T00:00:00Z" }) };
-			if (endpoint === "repos/o/r/releases?per_page=5") return { stdout: JSON.stringify([]) };
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 4999 } } }) };}
+			if (endpoint === "repos/o/r/pulls/2") {return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-01-01T00:00:00Z" }) };}
+			if (endpoint === "repos/o/r/releases?per_page=5") {return { stdout: JSON.stringify([]) };}
 			throw new Error(`unexpected endpoint ${endpoint}`);
 		};
 		const result2 = await recheckClaims({ claims: noAssertionClaims, exec: fakeExec2 });
@@ -679,11 +677,11 @@ test("recheckClaims: bounded concurrency never exceeds RECHECK_CONCURRENCY in fl
 		let inFlight = 0;
 		let maxInFlight = 0;
 		const fakeExec = async (_cmd, args) => {
-			const endpoint = args[1];
-			if (endpoint === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 5000 } } }) };
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 5000 } } }) };}
 			inFlight += 1;
 			maxInFlight = Math.max(maxInFlight, inFlight);
-			await new Promise((r) => setTimeout(r, 15));
+			await new Promise((r) => {setTimeout(r, 15);});
 			inFlight -= 1;
 			return { stdout: JSON.stringify({ state: "open" }) };
 		};
@@ -705,8 +703,8 @@ test("recheckClaims: MED-4 — a per-run call budget caps gh api calls, never si
 		}));
 		let apiCalls = 0;
 		const fakeExec = async (_cmd, args) => {
-			const endpoint = args[1];
-			if (endpoint === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 5000 } } }) };
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 5000 } } }) };}
 			apiCalls += 1;
 			return { stdout: JSON.stringify({ state: "open" }) };
 		};

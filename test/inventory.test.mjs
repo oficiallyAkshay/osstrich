@@ -66,7 +66,7 @@ function ok(name, cond, detail = "") {
 /** Split so this file's own source text never spells out the contiguous
  * "releases/download" / "releases/tag" substring the binary-pin detector
  * looks for — see the module doc above. */
-const REL = "release" + "s";
+const REL = 'releases';
 
 /** A node:fs-shaped wrapper that throws if `readFileSync`/`readdirSync` is
  * ever asked to resolve a path outside `root` — the "real filesystem never
@@ -157,7 +157,7 @@ test("collectInventory: the full fixture — every detector shape, every gap pat
 			"scripts/tool-installer.mjs",
 			[
 				...Array.from({ length: 20 }, (_, i) => `// filler line ${i + 1}, keeps the constant far from its own usage`),
-				"const toolAUrl = `https://github.com/acme/tool-a/" + REL + '/download/v${TOOLA_VERSION}/tool-a.tar.gz`;',
+				`const toolAUrl = \`https://github.com/acme/tool-a/${  REL  }/download/v\${TOOLA_VERSION}/tool-a.tar.gz\`;`,
 				...Array.from({ length: 20 }, (_, i) => `// more filler ${i + 1}`),
 				'export const TOOLA_VERSION = "1.2.3";',
 				"",
@@ -165,10 +165,10 @@ test("collectInventory: the full fixture — every detector shape, every gap pat
 		);
 		// tool-b: a literal (non-interpolated) version, in a `.sh` file, using
 		// the "tag" form of the URL rather than "download".
-		w("scripts/other/installer.sh", ["#!/bin/sh", "curl -LO https://github.com/acme/tool-b/" + REL + "/tag/v2.0.0/tool-b.tar.gz", ""].join("\n"));
+		w("scripts/other/installer.sh", ["#!/bin/sh", `curl -LO https://github.com/acme/tool-b/${  REL  }/tag/v2.0.0/tool-b.tar.gz`, ""].join("\n"));
 		// tool-missing-const: interpolates a constant that is never declared
 		// anywhere in the file — soft gap, never a throw.
-		w("scripts/broken-installer.mjs", ["const url = `https://github.com/acme/tool-missing-const/" + REL + '/download/v${NEVER_DECLARED}/x.tar.gz`;', ""].join("\n"));
+		w("scripts/broken-installer.mjs", [`const url = \`https://github.com/acme/tool-missing-const/${  REL  }/download/v\${NEVER_DECLARED}/x.tar.gz\`;`, ""].join("\n"));
 		// A `_VERSION`-shaped constant with NO release URL anywhere in the
 		// file produces NO row at all — detection is URL-driven, not
 		// const-driven, under the new shape rule.
@@ -282,31 +282,31 @@ test("collectInventory: the full fixture — every detector shape, every gap pat
 			if (url.includes("registry.npmjs.org/acme-pad")) {
 				return { ok: true, json: async () => ({ "dist-tags": { latest: "1.3.1" }, repository: { url: "git+https://github.com/acme/pad.git" } }) };
 			}
-			if (url.includes("api.npmjs.org/downloads/point/last-week/acme-pad")) return { ok: true, json: async () => ({ downloads: 5000000 }) };
-			if (url.includes("registry.npmjs.org/acme-chalk")) throw new Error("simulated network failure");
-			if (url.includes("api.npmjs.org/downloads/point/last-week/acme-chalk")) return { ok: false, status: 503 };
+			if (url.includes("api.npmjs.org/downloads/point/last-week/acme-pad")) {return { ok: true, json: async () => ({ downloads: 5_000_000 }) };}
+			if (url.includes("registry.npmjs.org/acme-chalk")) {throw new Error("simulated network failure");}
+			if (url.includes("api.npmjs.org/downloads/point/last-week/acme-chalk")) {return { ok: false, status: 503 };}
 			if (url.includes("registry.npmjs.org/acme-lodash")) {
 				return { ok: true, json: async () => ({ "dist-tags": { latest: "4.17.21" }, repository: "git://github.com/acme/lodash-mirror.git" }) };
 			}
-			if (url.includes("api.npmjs.org/downloads/point/last-week/acme-lodash")) return { ok: true, json: async () => ({ downloads: 30000000 }) };
-			if (url.includes("registry.npmjs.org/acme-odd")) return { ok: true, json: async () => ({ "dist-tags": { latest: "3.0.0" } }) }; // no `repository` field
-			if (url.includes("api.npmjs.org/downloads/point/last-week/acme-odd")) return { ok: true, json: async () => ({ downloads: 100 }) };
-			if (url.includes("registry.npmjs.org/acme-unknown-pkg")) return { ok: true, json: async () => ({ "dist-tags": { latest: "9.9.9" } }) };
-			if (url.includes("api.npmjs.org/downloads/point/last-week/acme-unknown-pkg")) return { ok: true, json: async () => ({ downloads: 0 }) };
-			if (url.includes("registry.npmjs.org/acme-widget")) return { ok: true, json: async () => ({ repository: { url: "https://github.com/acme/widget" } }) };
-			if (url.includes("registry.npmjs.org/acme-gadget")) return { ok: true, json: async () => ({ repository: "git+https://github.com/acme/gadget.git" }) };
+			if (url.includes("api.npmjs.org/downloads/point/last-week/acme-lodash")) {return { ok: true, json: async () => ({ downloads: 30_000_000 }) };}
+			if (url.includes("registry.npmjs.org/acme-odd")) {return { ok: true, json: async () => ({ "dist-tags": { latest: "3.0.0" } }) };} // no `repository` field
+			if (url.includes("api.npmjs.org/downloads/point/last-week/acme-odd")) {return { ok: true, json: async () => ({ downloads: 100 }) };}
+			if (url.includes("registry.npmjs.org/acme-unknown-pkg")) {return { ok: true, json: async () => ({ "dist-tags": { latest: "9.9.9" } }) };}
+			if (url.includes("api.npmjs.org/downloads/point/last-week/acme-unknown-pkg")) {return { ok: true, json: async () => ({ downloads: 0 }) };}
+			if (url.includes("registry.npmjs.org/acme-widget")) {return { ok: true, json: async () => ({ repository: { url: "https://github.com/acme/widget" } }) };}
+			if (url.includes("registry.npmjs.org/acme-gadget")) {return { ok: true, json: async () => ({ repository: "git+https://github.com/acme/gadget.git" }) };}
 			throw new Error(`unexpected fetch url in test: ${url}`);
 		}
 
 		async function fakeExec(cmd, args) {
-			if (cmd !== "gh") throw new Error(`unexpected exec command in test: ${cmd}`);
-			const target = args[1];
-			if (target === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 4000 } } }) };
-			if (target === "repos/acme/pad") throw new Error("simulated gh api failure");
-			const releaseMatch = target.match(/^repos\/(.+)\/releases\/latest$/);
-			if (releaseMatch) return { stdout: JSON.stringify({ tag_name: `v9.9.9-${releaseMatch[1].split("/")[1]}` }) };
-			const repoMatch = target.match(/^repos\/(.+)$/);
-			if (repoMatch) return { stdout: JSON.stringify({ stargazers_count: 42, archived: false, owner: { type: "Organization" }, open_issues_count: 3 }) };
+			if (cmd !== "gh") {throw new Error(`unexpected exec command in test: ${cmd}`);}
+			const [, target] = args;
+			if (target === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 4000 } } }) };}
+			if (target === "repos/acme/pad") {throw new Error("simulated gh api failure");}
+			const releaseMatch = target.match(/^repos\/(?<repo>.+)\/releases\/latest$/);
+			if (releaseMatch) {return { stdout: JSON.stringify({ tag_name: `v9.9.9-${releaseMatch.groups.repo.split("/", 2)[1]}` }) };}
+			const repoMatch = target.match(/^repos\/(?<repo>.+)$/);
+			if (repoMatch) {return { stdout: JSON.stringify({ stargazers_count: 42, archived: false, owner: { type: "Organization" }, open_issues_count: 3 }) };}
 			throw new Error(`unhandled gh api target in test: ${target}`);
 		}
 
@@ -326,13 +326,13 @@ test("collectInventory: the full fixture — every detector shape, every gap pat
 		ok("generatedAt uses the injected clock", result.generatedAt === new Date(fixedNow()).toISOString(), result.generatedAt);
 		ok(
 			"skip-dir and custom-skipDirs packages never surface",
-			!["should-not-appear", "coverage-ghost", "dist-ghost", "git-ghost", "custom-skip-ghost", "prefix-skip-ghost"].some((n) => find(result.projects, "npm", n)),
+			["should-not-appear", "coverage-ghost", "dist-ghost", "git-ghost", "custom-skip-ghost", "prefix-skip-ghost"].every((n) => !find(result.projects, "npm", n)),
 		);
 
 		const acmePad = find(result.projects, "npm", "acme-pad");
 		ok(
 			"acme-pad: ours from lock, latest+repo+downloads from registry, stars from gh",
-			acmePad?.ours === "1.3.0" && acmePad.latest === "1.3.1" && acmePad.repo === "acme/pad" && acmePad.weeklyDownloads === 5000000,
+			acmePad?.ours === "1.3.0" && acmePad.latest === "1.3.1" && acmePad.repo === "acme/pad" && acmePad.weeklyDownloads === 5_000_000,
 			JSON.stringify(acmePad),
 		);
 
@@ -368,7 +368,7 @@ test("collectInventory: the full fixture — every detector shape, every gap pat
 		ok("tool-missing-const: no row is dropped, but its version stays null", find(result.projects, "binary", "tool-missing-const")?.ours === null);
 		ok(
 			"a bare *_VERSION constant with no release URL anywhere produces NO row at all (URL-driven, not const-driven)",
-			!result.projects.some((p) => p.kind === "binary" && p.ours === "9.9.9"),
+			result.projects.every((p) => !(p.kind === "binary" && p.ours === "9.9.9")),
 		);
 		const postgres = find(result.projects, "image", "postgres");
 		const redis = find(result.projects, "image", "redis");
@@ -450,9 +450,9 @@ test("collectInventory: maxFileBytes skips an oversized content-scan target, wit
 			writeFileSync(abs, content);
 		};
 		// A small binary-pin file, comfortably under the cap, still resolves.
-		w("scripts/small.mjs", "const url = `https://github.com/acme/tool-small/" + REL + "/tag/v1.0.0`;\n");
+		w("scripts/small.mjs", `const url = \`https://github.com/acme/tool-small/${  REL  }/tag/v1.0.0\`;\n`);
 		// A file over the (tiny, test-only) cap — never read, skipped with a gap.
-		w("scripts/huge.mjs", "const url = `https://github.com/acme/tool-huge/" + REL + "/tag/v1.0.0`; // " + "x".repeat(300) + "\n");
+		w("scripts/huge.mjs", `const url = \`https://github.com/acme/tool-huge/${  REL  }/tag/v1.0.0\`; // ${  "x".repeat(300)  }\n`);
 
 		const neverCalled = async () => {
 			throw new Error("should never be called — neither row carries a repo lookup that needs it");
@@ -498,7 +498,7 @@ test("collectInventory: the sparse fixture — a shape found nowhere is not a fa
 
 		// hostsFile defaults to null: no host rows, and specifically no gap
 		// (the module hasn't been told where to look, which isn't a failure).
-		ok("no host-installs gap when hostsFile is left at its null default", !result.gaps.some((g) => g.source === "host-installs"));
+		ok("no host-installs gap when hostsFile is left at its null default", result.gaps.every((g) => g.source !== "host-installs"));
 	}
 });
 
@@ -517,7 +517,7 @@ test("collectInventory: hostsFile given but unreadable IS a gap", async () => {
 			now: () => 0,
 			hostsFile: "does-not-exist.md",
 		});
-		ok("zero host rows", !result.projects.some((p) => p.kind === "host"));
+		ok("zero host rows", result.projects.every((p) => p.kind !== "host"));
 		ok("a hostsFile that was given but doesn't exist IS a gap", result.gaps.some((g) => g.source === "host-installs"), JSON.stringify(result.gaps));
 	}
 });
@@ -565,7 +565,7 @@ test("collectInventory: the GitHub rate-limit budget gate", async () => {
 		};
 
 		async function throwingRateLimit(_cmd, args) {
-			if (args[1] === "rate_limit") throw new Error("gh: not authenticated");
+			if (args[1] === "rate_limit") {throw new Error("gh: not authenticated");}
 			throw new Error(`unexpected exec in rate-limit test: ${args[1]}`);
 		}
 		const throwResult = await collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: throwingRateLimit, fetch: neverCalled, now: () => 0 });
@@ -579,7 +579,7 @@ test("collectInventory: the GitHub rate-limit budget gate", async () => {
 		);
 
 		async function lowBudget(_cmd, args) {
-			if (args[1] === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 50 } } }) };
+			if (args[1] === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 50 } } }) };}
 			throw new Error(`unexpected exec in rate-limit test: ${args[1]}`);
 		}
 		const lowResult = await collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: lowBudget, fetch: neverCalled, now: () => 0 });
@@ -620,8 +620,8 @@ test("collectInventory: the GitHub rate-limit budget is re-checked before every 
 				const remaining = rateLimitCalls === 1 ? 4000 : 50;
 				return { stdout: JSON.stringify({ resources: { core: { remaining } } }) };
 			}
-			if (args[1] === "repos/acme/first-tool") return { stdout: JSON.stringify({ stargazers_count: 7 }) };
-			if (args[1] === "repos/acme/first-tool/releases/latest") return { stdout: JSON.stringify({ tag_name: "v1.2.3" }) };
+			if (args[1] === "repos/acme/first-tool") {return { stdout: JSON.stringify({ stargazers_count: 7 }) };}
+			if (args[1] === "repos/acme/first-tool/releases/latest") {return { stdout: JSON.stringify({ tag_name: "v1.2.3" }) };}
 			throw new Error(`unexpected exec call once the budget should have stopped the queue: ${args[1]}`);
 		}
 		// concurrency: 1 forces each project into its own batch, so the SECOND
@@ -651,18 +651,18 @@ test("collectInventory: a registry fetch failure is retried once, after 500ms, t
 		async function flakyThenOkFetch(url) {
 			if (url.includes("registry.npmjs.org/acme-retry-pkg")) {
 				registryCalls += 1;
-				if (registryCalls === 1) throw new Error("simulated transient network failure");
+				if (registryCalls === 1) {throw new Error("simulated transient network failure");}
 				return { ok: true, json: async () => ({ "dist-tags": { latest: "1.2.0" }, repository: { url: "git+https://github.com/acme/retry-pkg.git" } }) };
 			}
-			if (url.includes("api.npmjs.org/downloads")) return { ok: true, json: async () => ({ downloads: 10 }) };
+			if (url.includes("api.npmjs.org/downloads")) {return { ok: true, json: async () => ({ downloads: 10 }) };}
 			throw new Error(`unexpected fetch url: ${url}`);
 		}
 		// The registry retry is the only thing under test here — give the
 		// GitHub queue (triggered once the registry resolves a repo) a plain
 		// working fake so it never adds unrelated gaps to muddy the assertions.
 		async function fakeExec(_cmd, args) {
-			if (args[1] === "rate_limit") return { stdout: JSON.stringify({ resources: { core: { remaining: 4000 } } }) };
-			if (args[1] === "repos/acme/retry-pkg") return { stdout: JSON.stringify({ stargazers_count: 1 }) };
+			if (args[1] === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 4000 } } }) };}
+			if (args[1] === "repos/acme/retry-pkg") {return { stdout: JSON.stringify({ stargazers_count: 1 }) };}
 			throw new Error(`unexpected exec target: ${args[1]}`);
 		}
 
@@ -671,7 +671,7 @@ test("collectInventory: a registry fetch failure is retried once, after 500ms, t
 
 		ok("exactly two registry calls were made — the failing first attempt plus one retry", registryCalls === 2, String(registryCalls));
 		ok("the retried call's value is used once it succeeds — no gap, real latest/repo", row?.latest === "1.2.0" && row?.repo === "acme/retry-pkg", JSON.stringify(row));
-		ok("no npm-registry gap is recorded once the retry succeeds", !result.gaps.some((g) => g.source === "npm-registry"), JSON.stringify(result.gaps));
+		ok("no npm-registry gap is recorded once the retry succeeds", result.gaps.every((g) => g.source !== "npm-registry"), JSON.stringify(result.gaps));
 	}
 });
 
@@ -687,7 +687,7 @@ test("collectInventory: a 4xx registry response is never retried", async () => {
 				registryCalls += 1;
 				return { ok: false, status: 404 };
 			}
-			if (url.includes("api.npmjs.org/downloads")) return { ok: false, status: 404 };
+			if (url.includes("api.npmjs.org/downloads")) {return { ok: false, status: 404 };}
 			throw new Error(`unexpected fetch url: ${url}`);
 		}
 		async function fakeExec() {
@@ -786,7 +786,7 @@ test("collectInventory: markdown patch-list repo fallback — heading, nearest p
 			Boolean(caseB),
 			JSON.stringify(result.projects.map((p) => p.name)),
 		);
-		ok("the decoy repo mentioned in the earlier, farther paragraph never wins", !result.projects.some((p) => p.repo === "example/decoy-repo"));
+		ok("the decoy repo mentioned in the earlier, farther paragraph never wins", result.projects.every((p) => p.repo !== "example/decoy-repo"));
 
 		const caseD = find(result.projects, "patch", "patch-1");
 		ok(
@@ -858,12 +858,12 @@ test("collectInventory: binary-pin reader ignores test paths", async () => {
 		// `tests/` directory nested several levels deep (ignored entirely —
 		// not merely deduped, since the row below must carry exactly one
 		// source, and it must be the scripts/ one).
-		w("scripts/tool-e-installer.mjs", "const url = `https://github.com/acme/tool-e/" + REL + "/tag/v1.0.0`;\n");
-		w("src/nested/tests/tool-e-installer.mjs", "const url = `https://github.com/acme/tool-e/" + REL + "/tag/v1.0.0`;\n");
+		w("scripts/tool-e-installer.mjs", `const url = \`https://github.com/acme/tool-e/${  REL  }/tag/v1.0.0\`;\n`);
+		w("src/nested/tests/tool-e-installer.mjs", `const url = \`https://github.com/acme/tool-e/${  REL  }/tag/v1.0.0\`;\n`);
 
 		// A `.test.` filename is ignored even sitting directly in scripts/,
 		// a directory the reader otherwise scans.
-		w("scripts/tool-f-installer.test.mjs", "const url = `https://github.com/acme/tool-f/" + REL + "/tag/v1.0.0`;\n");
+		w("scripts/tool-f-installer.test.mjs", `const url = \`https://github.com/acme/tool-f/${  REL  }/tag/v1.0.0\`;\n`);
 
 		const neverCalled = async () => {
 			throw new Error("should never be called — no npm/CI/host row in this fixture needs a lookup");
@@ -920,7 +920,7 @@ test("collectInventory: osstrich never inventories itself — dropped before the
 		const result = await collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: neverCalledExec, fetch: fakeFetch, now: () => 0 });
 
 		ok("the npm row named osstrich never surfaces", !find(result.projects, "npm", "osstrich"), JSON.stringify(result.projects));
-		ok("the vendored row for oficiallyAkshay/osstrich never surfaces", !result.projects.some((p) => p.repo === "oficiallyAkshay/osstrich"), JSON.stringify(result.projects));
+		ok("the vendored row for oficiallyAkshay/osstrich never surfaces", result.projects.every((p) => p.repo !== "oficiallyAkshay/osstrich"), JSON.stringify(result.projects));
 		ok("a real, unrelated dependency in the same repo still surfaces", Boolean(find(result.projects, "npm", "acme-real-dep")));
 
 		const selfGaps = result.gaps.filter((g) => g.source === "self");
@@ -954,6 +954,6 @@ test("collectInventory: a repo that neither depends on nor vendors osstrich gets
 		const result = await collectInventory({ repoRoot, fs: scopedFs(repoRoot), exec: neverCalledExec, fetch: fakeFetch, now: () => 0 });
 
 		ok("the real dependency surfaces", Boolean(find(result.projects, "npm", "acme-real-dep")));
-		ok("no self gap when nothing was dropped", !result.gaps.some((g) => g.source === "self"), JSON.stringify(result.gaps));
+		ok("no self gap when nothing was dropped", result.gaps.every((g) => g.source !== "self"), JSON.stringify(result.gaps));
 	}
 });

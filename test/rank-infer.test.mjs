@@ -34,9 +34,9 @@ test("osstrich-rank: rankProjects over a 6-row fixture", async () => {
 			{ name: "alpha", kind: "action", ours: "v1", latest: "v1", repo: "org/alpha", stars: 10, weeklyDownloads: null },
 			{ name: "beta", kind: "npm", ours: "1.0.0", latest: "1.1.0", repo: "org/beta", stars: 10, weeklyDownloads: 1000 },
 			{ name: "gamma", kind: "npm", ours: "2.0.0", latest: "2.0.0", repo: "org/gamma", stars: 50, weeklyDownloads: 500 },
-			{ name: "delta", kind: "npm", ours: "3.0.0", latest: "4.0.0", repo: "org/delta", stars: 200, weeklyDownloads: 100000 },
+			{ name: "delta", kind: "npm", ours: "3.0.0", latest: "4.0.0", repo: "org/delta", stars: 200, weeklyDownloads: 100_000 },
 			{ name: "epsilon", kind: "npm", ours: "0.1.0", latest: "0.1.0", repo: "org/epsilon", stars: 5, weeklyDownloads: 50 },
-			{ name: "zeta", kind: "npm", ours: "5.0.0", latest: "5.5.0", repo: "org/zeta", stars: 300, weeklyDownloads: 200000 },
+			{ name: "zeta", kind: "npm", ours: "5.0.0", latest: "5.5.0", repo: "org/zeta", stars: 300, weeklyDownloads: 200_000 },
 			// Unmeasurable rows: neither belongs in the ranked ordering at all —
 			// they must never surface as fake "least popular" bottom entries.
 			{ name: "redis-image", kind: "image", ours: "7.4.11", latest: null, repo: null, stars: null, weeklyDownloads: null },
@@ -141,7 +141,7 @@ test("osstrich-rank: edge cases (missing table, missing repo, null stars, narrow
 		{ name: "img-with-metrics", kind: "image", ours: "1", latest: "1", repo: "org/img", stars: 999, weeklyDownloads: 999 },
 	];
 
-	const noTableResult = rankProjects(projects, undefined);
+	const noTableResult = rankProjects(projects);
 	ok("undefined classification markdown → everyone RANKED unclassified, no throw (excluded rows never enter classification)", noTableResult.unclassified.length === 3, JSON.stringify(noTableResult.unclassified));
 
 	const emptyTableResult = rankProjects(projects, "");
@@ -153,8 +153,8 @@ test("osstrich-rank: edge cases (missing table, missing repo, null stars, narrow
 	const noRepoRow = noTableResult.rows.find((r) => r.name === "no-repo-project");
 	ok("a project with no repo at all is unclassified, not a crash", noRepoRow.class === "unclassified");
 
-	ok("a row with both stars and downloads null never reaches rows/bottom", !noTableResult.rows.some((r) => r.name === "no-signal-binary"));
-	ok("an image row is pulled out even when it carries real stars/downloads", !noTableResult.rows.some((r) => r.name === "img-with-metrics"));
+	ok("a row with both stars and downloads null never reaches rows/bottom", noTableResult.rows.every((r) => r.name !== "no-signal-binary"));
+	ok("an image row is pulled out even when it carries real stars/downloads", noTableResult.rows.every((r) => r.name !== "img-with-metrics"));
 	ok(
 		"both land in unranked with the right reason, name-sorted",
 		JSON.stringify(noTableResult.unranked) === JSON.stringify([
@@ -186,7 +186,7 @@ test("osstrich-rank: DEFECT A — a 404'd upstream repo lookup never ranks by do
 	// land in the ranked table, let alone rank #1 by downloads alone.
 	const inventory = {
 		projects: [
-			{ name: "shellcheck", kind: "npm", repo: "gunar/shellcheck", stars: null, weeklyDownloads: 80385 },
+			{ name: "shellcheck", kind: "npm", repo: "gunar/shellcheck", stars: null, weeklyDownloads: 80_385 },
 			{ name: "safe-npm-pkg", kind: "npm", repo: "org/safe-npm-pkg", stars: null, weeklyDownloads: 500 },
 			{ name: "also-404", kind: "npm", repo: "org/also-404", stars: null, weeklyDownloads: 42 },
 		],
@@ -200,7 +200,7 @@ test("osstrich-rank: DEFECT A — a 404'd upstream repo lookup never ranks by do
 		],
 	};
 
-	const result = rankProjects(inventory, undefined);
+	const result = rankProjects(inventory);
 	const rankedNames = result.rows.map((r) => r.name);
 
 	ok("the 404'd project is excluded from rows entirely", !rankedNames.includes("shellcheck"), JSON.stringify(rankedNames));
@@ -246,7 +246,7 @@ console.log("\n── osstrich-rank: a hand-patch row (kind: \"patch\") never en
 		gaps: [],
 	};
 
-	const result = rankProjects(inventory, undefined);
+	const result = rankProjects(inventory);
 	const rankedNames = result.rows.map((r) => r.name);
 
 	ok("the patch row is absent from rows", !rankedNames.includes("acme/widget#patch-1"), JSON.stringify(rankedNames));
@@ -447,23 +447,23 @@ try {
 	);
 	ok("(b) override fires for a package.json overrides key", (result.byProject["acme-minimist"] || []).some((h) => h.signal === "override" && h.file === "package.json"), JSON.stringify(result.byProject["acme-minimist"]));
 	ok("(c) exact-pin fires for a no-range dependency version", (result.byProject["cross-env-clone"] || []).some((h) => h.signal === "exact-pin"), JSON.stringify(result.byProject["cross-env-clone"]));
-	ok("(c) exact-pin does NOT fire for a caret-ranged dependency", !(result.byProject["acme-pad"] || []).some((h) => h.signal === "exact-pin"), JSON.stringify(result.byProject["acme-pad"]));
+	ok("(c) exact-pin does NOT fire for a caret-ranged dependency", (result.byProject["acme-pad"] || []).every((h) => h.signal !== "exact-pin"), JSON.stringify(result.byProject["acme-pad"]));
 	ok("(d) code-note fires for a TODO naming a project", (result.byProject["acme-pad"] || []).some((h) => h.signal === "code-note" && h.file === "shared/foo.mjs"), JSON.stringify(result.byProject["acme-pad"]));
 	ok("(e) doc-note fires for a plain doc file naming a project with a watch-word", (result.byProject["acme-minimist"] || []).some((h) => h.signal === "doc-note" && h.file === "docs/gotchas-foo.md"), JSON.stringify(result.byProject["acme-minimist"]));
 
-	ok("decoy: 'pad' does not fire inside 'acme-pad' or 'acme-pad+1.0.2.patch'", !(result.byProject.pad || []).length, JSON.stringify(result.byProject.pad));
-	ok("decoy: 'express-clone' does not fire inside 'expression'", !(result.byProject["express-clone"] || []).length, JSON.stringify(result.byProject["express-clone"]));
+	ok("decoy: 'pad' does not fire inside 'acme-pad' or 'acme-pad+1.0.2.patch'", (result.byProject.pad || []).length === 0, JSON.stringify(result.byProject.pad));
+	ok("decoy: 'express-clone' does not fire inside 'expression'", (result.byProject["express-clone"] || []).length === 0, JSON.stringify(result.byProject["express-clone"]));
 	ok(
 		"code-note text does not conflate 'acme-pad-cli' with 'acme-pad' beyond the true hit",
 		(result.byProject["acme-pad"] || []).filter((h) => h.signal === "code-note").length === 1,
 		JSON.stringify(result.byProject["acme-pad"]),
 	);
 
-	ok("node_modules is invisible to every signal (built-in default)", !(result.byProject["acme-minimist"] || []).some((h) => h.file.includes("node_modules")), JSON.stringify(result.byProject["acme-minimist"]));
-	ok("a custom skipDirs bare name (nested-checkout) is invisible", !(result.byProject["acme-minimist"] || []).some((h) => h.file.includes("nested-checkout")), JSON.stringify(result.byProject["acme-minimist"]));
-	ok("a custom skipDirs relative prefix (vendor/dropped) is invisible", !(result.byProject["acme-minimist"] || []).some((h) => h.file.includes("vendor/dropped")), JSON.stringify(result.byProject["acme-minimist"]));
-	ok("coverage/ is invisible to every signal (built-in default)", !(result.byProject["acme-minimist"] || []).some((h) => h.file.includes("coverage/")));
-	ok(".git/ is invisible to every signal (built-in default)", !(result.byProject["acme-minimist"] || []).some((h) => h.file.includes(".git/")));
+	ok("node_modules is invisible to every signal (built-in default)", (result.byProject["acme-minimist"] || []).every((h) => !h.file.includes("node_modules")), JSON.stringify(result.byProject["acme-minimist"]));
+	ok("a custom skipDirs bare name (nested-checkout) is invisible", (result.byProject["acme-minimist"] || []).every((h) => !h.file.includes("nested-checkout")), JSON.stringify(result.byProject["acme-minimist"]));
+	ok("a custom skipDirs relative prefix (vendor/dropped) is invisible", (result.byProject["acme-minimist"] || []).every((h) => !h.file.includes("vendor/dropped")), JSON.stringify(result.byProject["acme-minimist"]));
+	ok("coverage/ is invisible to every signal (built-in default)", (result.byProject["acme-minimist"] || []).every((h) => !h.file.includes("coverage/")));
+	ok(".git/ is invisible to every signal (built-in default)", (result.byProject["acme-minimist"] || []).every((h) => !h.file.includes(".git/")));
 	ok("acme-minimist's only real hits are the override and the doc-note (2 total)", (result.byProject["acme-minimist"] || []).length === 2, JSON.stringify(result.byProject["acme-minimist"]));
 
 	ok("cap: capproj is capped at 50 hits even though 60 exist", (result.byProject.capproj || []).length === 50, String((result.byProject.capproj || []).length));
@@ -480,7 +480,7 @@ try {
 	);
 	ok(
 		"(e) `ignore` excludes a caller-marked doc path from doc-note scanning",
-		!(result.byProject.excludedproj || []).some((h) => h.file === "generated/repos/excludedproj.md"),
+		(result.byProject.excludedproj || []).every((h) => h.file !== "generated/repos/excludedproj.md"),
 		JSON.stringify(result.byProject.excludedproj),
 	);
 	ok(
@@ -501,19 +501,23 @@ try {
 	);
 	ok(
 		"(f) a patch row with NO sources array at all produces no hit — never a fabricated location",
-		!(result.byProject.acme || []).some((h) => h.text === acmePatchNoSourcesAtAll.label),
+		(result.byProject.acme || []).every((h) => h.text !== acmePatchNoSourcesAtAll.label),
 		JSON.stringify(result.byProject.acme),
 	);
 	ok(
 		"(f) a patch row with no repo produces zero hits anywhere, never a crash",
-		Object.values(result.byProject).every((hits) => !hits.some((h) => h.text === orphanPatch.label)),
+		Object.values(result.byProject).every((hits) => hits.every((h) => h.text !== orphanPatch.label)),
 	);
 	ok(
 		"(f) a patch row is never itself a byProject key — patch rows are excluded from name-matching entirely",
+		// A present-but-empty hits array is also a pass here — this checks
+		// the VALUE is falsy/absent, not merely whether the key exists, so
+		// `Object.hasOwn` would be the wrong tool.
+		// eslint-disable-next-line unicorn/no-computed-property-existence-check
 		!result.byProject[acmePatchWithLine.name] && !result.byProject[acmePatchSourceNoLine.name] && !result.byProject[acmePatchNoSourcesAtAll.name] && !result.byProject[orphanPatch.name],
 		JSON.stringify(Object.keys(result.byProject)),
 	);
-	ok("(f) an unrelated project (a different repo) gets no hand-patch hit", !(result.byProject["unrelated-repo"] || []).some((h) => h.signal === "hand-patch"));
+	ok("(f) an unrelated project (a different repo) gets no hand-patch hit", (result.byProject["unrelated-repo"] || []).every((h) => h.signal !== "hand-patch"));
 
 	const secondRun = inferNextSteps({ repoRoot: tmpRoot, fs: realFs, projects, skipDirs, ignore });
 	ok("determinism: two runs over the same fixture produce identical output", JSON.stringify(secondRun) === JSON.stringify(result));
@@ -542,10 +546,7 @@ test("osstrich-infer: fail-soft paths via a fake fs (gaps[], never a throw)", as
 
 	// One directory readable (root), files inside it throw on read.
 	const unreadableFileFs = {
-		readdirSync: (dir) => {
-			if (dir === "/fake-repo") return [{ name: "package.json", isDirectory: () => false, isFile: () => true }];
-			return [];
-		},
+		readdirSync: (dir) => dir === "/fake-repo" ? [{ name: "package.json", isDirectory: () => false, isFile: () => true }] : [],
 		readFileSync: () => {
 			throw new Error("EACCES: permission denied");
 		},
@@ -573,9 +574,8 @@ test("osstrich-infer: fail-soft paths via a fake fs (gaps[], never a throw)", as
 	// (races, permissions) is a gap too, and the walk keeps going.
 	const flakyFileFs = {
 		readdirSync: (dir) => {
-			if (dir === "/fake-repo-3") return [{ name: "shared", isDirectory: () => true, isFile: () => false }];
-			if (dir === "/fake-repo-3/shared") return [{ name: "broken.mjs", isDirectory: () => false, isFile: () => true }];
-			return [];
+			if (dir === "/fake-repo-3") {return [{ name: "shared", isDirectory: () => true, isFile: () => false }];}
+			return dir === "/fake-repo-3/shared" ? [{ name: "broken.mjs", isDirectory: () => false, isFile: () => true }] : [];
 		},
 		readFileSync: () => {
 			throw new Error("EIO");

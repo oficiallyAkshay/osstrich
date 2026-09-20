@@ -31,7 +31,7 @@ test('a successful stage records state "done" with one attempt and streams the l
     env: { PATH: '/usr/bin' },
     runDir,
     exec,
-    timeoutMs: 5_000,
+    timeoutMs: 5000,
   });
 
   assert.equal(result.ok, true);
@@ -65,7 +65,7 @@ test('a non-argv-model agent gets OSSTRICH_MODEL in its environment instead', as
     env: {},
     runDir,
     exec,
-    timeoutMs: 5_000,
+    timeoutMs: 5000,
   });
 
   assert.equal(receivedEnv.OSSTRICH_MODEL, 'gpt-5');
@@ -88,7 +88,7 @@ test('a failing stage retries once, then records "failed" and appends errors.jso
     env: {},
     runDir,
     exec,
-    timeoutMs: 5_000,
+    timeoutMs: 5000,
   });
 
   assert.equal(result.ok, false);
