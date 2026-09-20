@@ -23,6 +23,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      # Codecov uploads with an OIDC token rather than a repository secret.
+      id-token: write
     strategy:
       # One version failing should still report the other, rather than
       # cancelling it and leaving the result unknown.
@@ -41,6 +43,18 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm ci
       - run: npm test
+
+      # One report per run, so only the newest leg uploads. The upload is
+      # tokenless: it authenticates with the job's OIDC identity, which
+      # Codecov accepts from a public repository. A Codecov outage must not
+      # block a merge, so the step reports and moves on.
+      - name: upload coverage
+        if: matrix.node == 24
+        uses: codecov/codecov-action@0b35c9ecc4f0529d0eb674914510c22f85b196b4 # v7.1.0
+        with:
+          use_oidc: true
+          files: coverage.lcov
+          fail_ci_if_error: false
 
   # The one context a required-checks rule needs to know. It exists on every
   # run whatever the matrix does, and fails unless every job it needs
