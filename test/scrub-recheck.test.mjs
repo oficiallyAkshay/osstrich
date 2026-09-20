@@ -24,7 +24,7 @@
 
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, join } from "node:path";
+import { join } from "node:path";
 import { RATE_LIMIT_FLOOR, RECHECK_CONCURRENCY, extractClaims, recheckClaims } from "../lib/recheck.mjs";
 import { scrubPaths, scrubText } from "../lib/scrub.mjs";
 import { test, after } from "node:test";
@@ -39,21 +39,11 @@ function gitleaksBinPath(repoRoot) {
 	return join(repoRoot, "node_modules", ".bin", "gitleaks");
 }
 
-// A real gitleaks binary is either vendored under this package's own
-// node_modules/.bin (what scrubText actually invokes) or just available on
-// PATH for local development — either is enough to run this one true
-// end-to-end test; neither means the integration test skips cleanly (via
-// node:test's own `t.skip()`, not a trivially-true assertion).
-function findGitleaksBin() {
-	const vendored = gitleaksBinPath(process.cwd());
-	if (existsSync(vendored)) {return vendored;}
-	for (const dir of (process.env.PATH || "").split(delimiter)) {
-		if (!dir) {continue;}
-		const candidate = join(dir, "gitleaks");
-		if (existsSync(candidate)) {return candidate;}
-	}
-	return null;
-}
+// resolveGitleaksBin (lib/scrub.mjs) only ever spawns the vendored binary
+// at node_modules/.bin/gitleaks — never a PATH lookup — so a gitleaks on
+// PATH but not vendored there is not "available" to the real default exec
+// this test drives. Gating the skip on PATH too would run the real exec
+// straight into an ENOENT for that machine instead of skipping cleanly.
 
 function ok(name, cond, detail = "") {
 	assert.ok(cond, detail ? `${name} — ${detail}` : name);
@@ -321,10 +311,9 @@ test("scrubPaths / scrubText: a finding's `file` field is populated per source k
 	}
 });
 
-test("scrubText: REAL gitleaks binary, skipped cleanly when not on PATH or in node_modules/.bin", async (t) => {
-	const gitleaksBin = findGitleaksBin();
-	if (!gitleaksBin) {
-		t.skip("gitleaks not found on PATH or in node_modules/.bin");
+test("scrubText: REAL gitleaks binary, skipped cleanly when not vendored in node_modules/.bin", async (t) => {
+	if (!existsSync(gitleaksBinPath(process.cwd()))) {
+		t.skip("gitleaks not vendored in node_modules/.bin");
 		return;
 	}
 
