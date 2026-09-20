@@ -1,0 +1,42 @@
+# OSSF Scorecard rates the repository's own supply-chain hygiene (branch
+# protection, pinned actions, review coverage) and publishes the score.
+# Advisory only: nothing here blocks a merge.
+name: scorecard
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly, off the hour and off the other scheduled workflows here, so none
+    # of them compete for a runner minute.
+    - cron: "38 5 * * 3"
+
+permissions: {}
+
+concurrency:
+  group: scorecard-${{ github.ref }}
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # Scorecard authenticates its publish with the job's OIDC identity
+      # rather than a repository secret.
+      id-token: write
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        with:
+          sarif_file: results.sarif
