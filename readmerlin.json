@@ -1,0 +1,18 @@
+{
+  "worksWith": ["Claude Code"],
+  "compare": {
+    "repos": [
+      "OpenHands/OpenHands",
+      "dependabot/dependabot-core",
+      "cutenode/good-first-issue"
+    ],
+    "rows": [
+      "Reads your dependencies",
+      "Ranks by need",
+      "Finds the overlap",
+      "Gates the fix",
+      "Ships a code fix",
+      "Installation"
+    ]
+  }
+}
