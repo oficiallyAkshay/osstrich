@@ -24,7 +24,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@clack/prompts": "1.8.0",
+    "@clack/prompts": "1.8.1",
     "@dotenvx/dotenvx": "2.24.1",
     "cockatiel": "4.0.0",
     "execa": "10.0.1",
