@@ -6,6 +6,14 @@ on:
   push:
     tags: ["v*"]
 permissions: {}
+
+# A tag push is a push trigger, keyed by commit sha; a version tag is never
+# force-pushed in the ordinary flow, so there is nothing to cancel in
+# progress.
+concurrency:
+  group: release-${{ github.sha }}
+  cancel-in-progress: false
+
 jobs:
   attach:
     runs-on: ubuntu-latest
@@ -14,7 +22,9 @@ jobs:
       # `gh release create` writes the release and uploads the tarball to it.
       contents: write
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: npm ci
       - run: node --test 'test/**/*.test.mjs'
       - run: |
