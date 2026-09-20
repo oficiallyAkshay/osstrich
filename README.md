@@ -11,6 +11,7 @@
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/license-MIT-2f6f4e?logo=opensourceinitiative&logoColor=white"></a>
   <a href="https://github.com/oficiallyAkshay/osstrich/releases/latest"><img alt="installs, from the release tarball" src="https://img.shields.io/github/downloads/oficiallyAkshay/osstrich/total?label=installs&color=2f6f4e&logo=github&logoColor=white"></a>
   <a href="https://github.com/oficiallyAkshay/clonometer"><img alt="clones of this repository, last seven days and all time" src="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/osstrich/badges/clones.json&query=$.badge&label=clones&logo=github&logoColor=white"></a>
+  <a href="https://www.bestpractices.dev/projects/14724"><img alt="OpenSSF Best Practices, passing" src="https://www.bestpractices.dev/projects/14724/badge"></a>
 </p>
 
 <p align="center">Works with<br>
