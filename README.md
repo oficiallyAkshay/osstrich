@@ -1,165 +1,74 @@
-# osstrich
+<h1 align="center">🦤 osstrich</h1>
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-black.svg)](LICENSE) ![Installs](https://img.shields.io/github/downloads/oficiallyAkshay/osstrich/total?label=installs&color=black) ![Forks](https://img.shields.io/github/forks/oficiallyAkshay/osstrich?style=flat&label=forks&color=black) [![coverage](https://img.shields.io/codecov/c/github/oficiallyAkshay/osstrich?logo=codecov&logoColor=white)](https://codecov.io/gh/oficiallyAkshay/osstrich) [![clones](<https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/osstrich/badges/clones.json&query=$.badge&label=clones&logo=github&logoColor=white>)](https://github.com/oficiallyAkshay/clonometer)
+<p align="center">
+  <b>Finds the dependency that owes you a fix, and ships it as a pull request.</b>
+</p>
 
-The bird that takes its head out of the sand.
+<p align="center"><img alt="osstrich reads your repo's dependencies, ranks them, finds the overlap with their open issues, and ships a pull request in the maintainer's own voice" src="assets/readme/hero.svg" width="900"></p>
 
-You depend on a few hundred open-source projects. Some are tiny, tired, and one bug away from ruining your week. osstrich reads *your* repo, finds the libraries where your next step and their open issue are the same thing, and fixes it upstream the way the maintainer would have.
+<p align="center">
+  <a href="https://codecov.io/gh/oficiallyAkshay/osstrich"><img alt="coverage" src="https://img.shields.io/codecov/c/github/oficiallyAkshay/osstrich?logo=codecov&logoColor=white"></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/license-MIT-2f6f4e?logo=opensourceinitiative&logoColor=white"></a>
+  <a href="https://github.com/oficiallyAkshay/osstrich/releases/latest"><img alt="installs, from the release tarball" src="https://img.shields.io/github/downloads/oficiallyAkshay/osstrich/total?label=installs&color=2f6f4e&logo=github&logoColor=white"></a>
+  <a href="https://github.com/oficiallyAkshay/clonometer"><img alt="clones of this repository, last seven days and all time" src="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/osstrich/badges/clones.json&query=$.badge&label=clones&logo=github&logoColor=white"></a>
+</p>
 
-## What it does
+<p align="center">Works with<br>
+  <a href="https://github.com/anthropics/claude-code"><img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-1e1b4b?logo=claude&logoColor=white"></a>
+</p>
 
-- **`osstrich discover`** — every project you run, least popular first, community before company, crossed against your backlog and workarounds. One table: fund, defer, skip.
-- **`osstrich build <repo | issue | patch>`** — their norms, the failing test first, the smallest fix, in their voice, with your name on it.
-- **The gate between them** — is there a way to use the library that makes the fix optional? Then the fix is a gift, not a chore.
+## Features
 
-## Install
+osstrich reads what your repo actually depends on and turns the one dependency costing you time into a merged pull request.
 
-```sh
-npm install https://github.com/oficiallyAkshay/osstrich/releases/latest/download/osstrich.tgz
-```
+<p align="center">🎯<br><b>Funds the real cost</b><br>Your own next step matched against their open issue, not a browsed backlog.</p>
 
-`gh` and `gitleaks` must be on PATH, along with any headless coding agent CLI (e.g. `claude -p`, `codex exec`) for the judgment phases.
+<p align="center">🌱<br><b>Community first</b><br>Company-backed projects rank behind the ones nobody else will fix.</p>
 
-## Quick start
+<p align="center">🚪<br><b>Gated before it builds</b><br>Skips the pull request when a different way of using the library fixes it for you instead.</p>
 
-```sh
-osstrich init
-osstrich discover
-osstrich discover --headless
-osstrich build owner/repo#123
-osstrich status
-```
+<p align="center">🗣️<br><b>Ships in their voice</b><br>Their tests first, their style, their commit format, your name on it.</p>
 
-## How it thinks
+<p align="center">🔒<br><b>Scrubbed before it's public</b><br>Every diff runs through gitleaks before a branch or a pull request goes anywhere external.</p>
 
-### 1. Discover: what should we contribute?
+<p align="center">📒<br><b>Counted, not narrated</b><br>One run record: candidates, funded, gate outcomes, pull requests opened, patches retired.</p>
 
-```
-+------------------------------------------------------------------+
-| YOUR REPO -> THE LIBRARY LIST                             [code] |
-| Q: what do we run?                                               |
-| 7 readers at once: locks, pins, actions, images, hosts, patches  |
-+------------------------------------------------------------------+
-          |                       |                       |
-          |   three branches at once, none waits          |
-          v                       v                       v
-+--------------------+  +--------------------+  +--------------------+
-| POPULARITY  [code] |  | OUR NEEDS   [code] |  | THEIR ITEMS [code] |
-| Q: how far behind, |  | Q: what is our     |  | Q: what are they   |
-|    how loved, who  |  |    next step with  |  |    stuck on?       |
-|    owns it?        |  |    it?             |  | A: open issues and |
-| A: registry and    |  | A: explicit: your  |  |    PRs, one worker |
-|    GitHub lookups  |  |    board, if any   |  |    per library,    |
-|    for every row   |  |    inferred: pins, |  |    every library;  |
-|          |         |  |    patches, TODOs, |  |    budget checked  |
-|          v         |  |    "retire once X  |  |    per batch       |
-| RANK               |  |    ships" notes    |  |                    |
-| Q: who will nobody |  |    (no board? the  |  |                    |
-|    else fix?       |  |    inferred half   |  |                    |
-| A: stars+downloads |  |    is enough)      |  |                    |
-|    averaged, comm- |  |                    |  |                    |
-|    unity first ->  |  |                    |  |                    |
-|    the bottom N    |  |                    |  |                    |
-+---------+----------+  +---------+----------+  +---------+----------+
-          |                       |                       |
-          +-----------------------+-----------------------+
-                                  v  join
-+------------------------------------------------------------------+
-| OVERLAP                                                     [AI] |
-| Q: is this need of ours really this item of theirs, or a bug we  |
-|    found that they were never told about?                        |
-| order and depth from RANK: bottom N read in full, rest by keyword|
-| A: candidates, one need to one item each                         |
-+---------------------------------+--------------------------------+
-                                  v  candidates judged in parallel
-+------------------------------------------------------------------+
-| VERDICT                                                     [AI] |
-| fund = overlap + evidence      defer = overlap, no evidence yet  |
-| skip = no overlap              gift = only if nothing funds      |
-+---------------------------------+--------------------------------+
-                                  v  one gate per funded item, at once
-+==================================================================+
-| GATE                                                        [AI] |
-| Q: is there another way to use the library that makes the        |
-|    upstream fix optional?                                        |
-| yes -> fix our side; the upstream item becomes a gift            |
-| no  -> upstream is the fix                                       |
-+=================================+================================+
-                                  v
-                    the table, written to disk               [code]
-                     |                              |
-                     v                              v
-              human "go"  [human]            persist and stop
-              -> BUILD on the top            (a later build picks
-                 funded item                  any row up)
-```
+## Fit
 
-### 2. Build: contribute this one
+Use it when:
 
-```
-+------------------------------------------------------------------+
-| THE TARGET                                                  [AI] |
-| Q: which repo, what breaks, for whom? is it a patch we carry?    |
-+-------+---------------+---------------+---------------+----------+
-        |               |               |               |
-        |         four at once          |               |
-        v               v               v               v
-+-------------+ +-------------+ +-------------+ +-----------------+
-| rules  [AI] | | discuss[AI] | | maint. [AI] | | STILL BROKEN?   |
-| guide, CI,  | | tried       | | asks,       | |          [code] |
-| lint, tests | | before? a   | | rejects,    | | run their tests |
-|             | | rival PR?   | | merges?     | | on latest code; |
-|             | |             | |             | | no -> stop      |
-+------+------+ +------+------+ +------+------+ +--------+--------+
-       |               |               |                 |
-       +---------------+-------+-------+-----------------+
-                               v  join; live beats our old notes
-+------------------------------------------------------------------+
-| HOW THEY WORK + a 4th scout for what the three missed       [AI] |
-+---------------------------------+--------------------------------+
-                                  v  serial by design
-+------------------------------------------------------------------+
-| FAILING TEST, in their shape, red on their code   [AI writes,    |
-|                                                    code runs]    |
-+---------------------------------+--------------------------------+
-                                  v  only once it is red
-+------------------------------------------------------------------+
-| FIX: the smallest change that removes the cause             [AI] |
-+----------+---------------------+---------------------+-----------+
-           |                     |                     |
-           |          three proofs at once             |
-           v                     v                     v
-+------------------+  +--------------------+  +--------------------+
-| FULL SUITE [code]|  | STRICTEST CI [code]|  | SCRUB        [code]|
-| all green?       |  | green there too?   |  | anything private?  |
-+---------+--------+  +----------+---------+  +----------+---------+
-          |                      |                       |
-          +----------------------+-----------------------+
-                                 v  join: real counts, nothing private
-+------------------------------------------------------------------+
-| THE PR                                                      [AI] |
-| Q: would the maintainer have written it this way?                |
-| symptom, cause, change, tests; rivals named fairly               |
-+---------------------------------+--------------------------------+
-                                  v
-          human "go" [human] -> opened -> reviews answered
-                     |                                  |
-                     |           two at once            |
-                     v                                  v
-+-------------------------------+  +-------------------------------+
-| RUN RECORD             [code] |  | LEARNING PASS           [AI]  |
-| Q: what happened, in numbers? |  | Q: what should next time know?|
-| A: candidates, funded, gate   |  | A: notes on this repo, dated; |
-|    outcomes, PRs opened,      |  |    rules changed; every       |
-|    review rounds, patches     |  |    "retire once X ships"      |
-|    retired                    |  |    claim re-checked           |
-+-------------------------------+  +-------------------------------+
-```
+- Your repo depends on more open source projects than you can watch, and you want the one whose problem is also yours found automatically.
+- You already know which library and issue to fix, and want the pull request written and posted in the maintainer's own voice.
+- You want contribution effort to go to the smallest, most under-resourced project first, not the loudest one.
 
-## Security
+Look elsewhere when:
 
-osstrich opens real pull requests against real repositories, using
-whatever `gh` auth and agent CLI you already have. It never sees or
-stores a credential itself, never touches your own repo's settings, and
-scrubs every diff with `gitleaks` before it is proposed. Full scope and
-how to report a vulnerability: [SECURITY.md](SECURITY.md).
+- You want dependency version bumps, not code fixes: that is Dependabot's job.
+- You want a general coding agent for your own repo's work: that is OpenHands's job.
+- You want to browse curated issues yourself rather than have your own dependency tree read and ranked.
+
+Install it from the tarball GitHub attaches to each release; the exact command is in CONTRIBUTING.
+
+## How it compares
+
+| | [oficiallyAkshay/osstrich](https://github.com/oficiallyAkshay/osstrich) | [OpenHands/OpenHands](https://github.com/OpenHands/OpenHands) | [dependabot/dependabot-core](https://github.com/dependabot/dependabot-core) | [cutenode/good-first-issue](https://github.com/cutenode/good-first-issue) |
+| --- | --- | --- | --- | --- |
+| Reads your dependencies | ✅ | ❌ | ✅ | ❌ |
+| Ranks by need | ✅ | ❌ | ❌ | ❌ |
+| Finds the overlap | ✅ | ❌ | ❌ | ❌ |
+| Gates the fix | ✅ | ❌ | ❌ | ❌ |
+| Ships a code fix | ✅ | ✅ | Version bumps | ❌ |
+| Installation | Tarball | npm | Library | npm |
+
+## Security and limits
+
+No credential of its own. On PATH: `gh`, `gitleaks`, one headless coding agent CLI. Each already holds its own auth, so osstrich never sees a token.
+
+- ❌ reads, stores or transmits your credentials itself
+- ❌ touches your own repository's settings, branches or releases
+- ❌ contacts any service of its own
+- ❌ adds a runtime dependency beyond what package.json declares
+- ❌ updates itself
+- ❌ leaves personal information or your own internal names in a diff, commit or pull request body it sends externally
+
+By default every diff is scrubbed for secrets before it is proposed, and nothing opens, pushes or comments without your explicit go. It needs Node 22 or newer.

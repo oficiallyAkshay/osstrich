@@ -6,6 +6,31 @@ Thank you. osstrich exists to make contributing easier, so contributing to it sh
 
 - For anything bigger than a typo, open an issue first and say what you are seeing. Two sentences is enough.
 - Check the open issues; someone may already be on it.
+- The agent block is [AGENTS.md](AGENTS.md) at the repo root; read it before wiring osstrich into a CI job or another agent.
+
+## Install and run
+
+Install the package from the tarball GitHub attaches to each release:
+
+```sh
+npm install https://github.com/oficiallyAkshay/osstrich/releases/latest/download/osstrich.tgz
+```
+
+`gh`, `gitleaks`, and any headless coding agent CLI (for example `claude -p` or `codex exec`) must be on PATH for the judgment phases, along with Node 22 or newer.
+
+```sh
+osstrich init
+osstrich discover
+osstrich discover --headless
+osstrich build owner/repo#123
+osstrich status
+```
+
+`osstrich --help` prints the full command table (`init`, `config`, `env`, `status`, `discover`, `build`, `scrub`, `recheck`) with its flags.
+
+## How it thinks
+
+Two flow diagrams walk `discover` and `build` step by step, marking which parts are deterministic, which are judgment calls, and where a human green light is required: [skill/references/how-it-thinks.md](skill/references/how-it-thinks.md).
 
 ## The bar, which is the skill's own bar
 

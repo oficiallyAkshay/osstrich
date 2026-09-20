@@ -1,0 +1,23 @@
+{
+  "kind": "fan",
+  "style": "flat",
+  "title": "osstrich reads your repo's dependencies, finds the one whose next step is also their open issue, and ships a pull request in the maintainer's own voice",
+  "sources": [
+    { "label": "Your repo", "icon": "folder", "gives": "libraries you run" },
+    { "label": "Their repos", "icon": "target", "gives": "open issues" }
+  ],
+  "handled": [
+    { "label": "Ranks by need", "icon": "badge-check" },
+    { "label": "Finds overlap", "icon": "link" },
+    { "label": "Gates the fix", "icon": "shield" },
+    { "label": "Writes their way", "icon": "git-merge" },
+    { "label": "Records the run", "icon": "archive" }
+  ],
+  "more": true,
+  "deliverable": {
+    "label": "a merged pull request",
+    "kind": "document",
+    "heading": "Pull request",
+    "backing": "opened, reviewed, merged upstream"
+  }
+}
