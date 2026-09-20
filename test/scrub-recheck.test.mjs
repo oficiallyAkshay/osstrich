@@ -725,3 +725,309 @@ test("recheckClaims: MED-4 — a per-run call budget caps gh api calls, never si
 		ok("a run within budget reports used = claims actually checked", smallResult.budget.used === 1, JSON.stringify(smallResult.budget));
 	}
 });
+
+test("scrubText: a `re:` line with an empty pattern is dropped, and an absent termsText builds a rules-free config", async () => {
+	{
+		let capturedConfig = null;
+		const capturingExec = async (_cmd, args) => {
+			const configIdx = args.indexOf("--config");
+			capturedConfig = readFileSync(args[configIdx + 1], "utf8");
+			const reportIdx = args.indexOf("--report-path");
+			writeFileSync(args[reportIdx + 1], "[]");
+			return { stdout: "", stderr: "" };
+		};
+		await scrubText({ text: "irrelevant", termsText: ["re:", "re:   ", "Widgetco"].join("\n"), exec: capturingExec, repoRoot: tmpRoot });
+		ok(
+			"a `re:` prefix with no pattern after it is dropped, never turned into a match-everything rule",
+			(capturedConfig.match(/\[\[rules\]\]/g) || []).length === 1,
+			capturedConfig,
+		);
+		ok("the one surviving term is the literal that followed them", capturedConfig.includes("regex = '''(?i)Widgetco'''"), capturedConfig);
+
+		capturedConfig = null;
+		const result = await scrubText({ text: "irrelevant", exec: capturingExec, repoRoot: tmpRoot });
+		ok("an absent termsText still builds a valid config, just with no rules in it", capturedConfig.includes('title = "osstrich-scrub"') && !capturedConfig.includes("[[rules]]"), capturedConfig);
+		ok("a rules-free scan comes back clean rather than failing", result.ok === true && result.findings.length === 0, JSON.stringify(result));
+	}
+});
+
+test("scrubText: an absent `text` scrubs an empty input, never the literal string 'undefined'", async () => {
+	{
+		let scannedText = null;
+		const capturingExec = async (_cmd, args) => {
+			const sourceIdx = args.indexOf("--source");
+			scannedText = readFileSync(args[sourceIdx + 1], "utf8");
+			const reportIdx = args.indexOf("--report-path");
+			writeFileSync(args[reportIdx + 1], "[]");
+			return { stdout: "", stderr: "" };
+		};
+		const result = await scrubText({ termsText: "Widgetco", exec: capturingExec, repoRoot: tmpRoot });
+		ok("the file handed to gitleaks is empty, not the string 'undefined'", scannedText === "", JSON.stringify(scannedText));
+		ok("an absent text scans clean instead of failing the write", result.ok === true && result.findings.length === 0, JSON.stringify(result));
+	}
+});
+
+test("scrubText: a report entry missing RuleID / StartLine / Match is still reported, with documented fallbacks", async () => {
+	{
+		const fakeExec = async (_cmd, args) => {
+			const reportIdx = args.indexOf("--report-path");
+			const fakeFindings = [
+				{ Secret: "abcdefgh" },
+				{ RuleID: "term-2", StartLine: "4", Match: "" },
+				{ RuleID: "term-3", StartLine: 9 },
+			];
+			writeFileSync(args[reportIdx + 1], JSON.stringify(fakeFindings));
+			return { stdout: "", stderr: "" };
+		};
+		const result = await scrubText({ text: "x", termsText: "Widgetco", exec: fakeExec, repoRoot: tmpRoot });
+		ok("every entry survives the mapping, none silently dropped", result.findings.length === 3, JSON.stringify(result.findings));
+		ok("an entry with no RuleID reports rule 'unknown'", result.findings[0].rule === "unknown", JSON.stringify(result.findings[0]));
+		ok("an entry with no StartLine reports line null, never a made-up number", result.findings[0].line === null, JSON.stringify(result.findings[0]));
+		ok("an entry with no Match masks its Secret instead of reporting nothing", result.findings[0].snippet === "ab…gh", JSON.stringify(result.findings[0]));
+		ok("a StartLine that isn't a number is rejected in favor of null", result.findings[1].line === null, JSON.stringify(result.findings[1]));
+		ok("an entry with neither Match nor Secret masks to ••• rather than leaking an empty snippet", result.findings[2].snippet === "•••", JSON.stringify(result.findings[2]));
+	}
+});
+
+test("scrubText: an empty or non-array gitleaks report reads as a clean scan, never a parse failure", async () => {
+	{
+		const execWritesBlankReport = async (_cmd, args) => {
+			const reportIdx = args.indexOf("--report-path");
+			writeFileSync(args[reportIdx + 1], "   \n");
+			return { stdout: "", stderr: "" };
+		};
+		const blankResult = await scrubText({ text: "x", termsText: "Widgetco", exec: execWritesBlankReport, repoRoot: tmpRoot });
+		ok("a whitespace-only report is a clean scan, not a soft failure", blankResult.ok === true && blankResult.findings.length === 0, JSON.stringify(blankResult));
+
+		const execWritesObjectReport = async (_cmd, args) => {
+			const reportIdx = args.indexOf("--report-path");
+			writeFileSync(args[reportIdx + 1], JSON.stringify({ message: "not an array" }));
+			return { stdout: "", stderr: "" };
+		};
+		const objectResult = await scrubText({ text: "x", termsText: "Widgetco", exec: execWritesObjectReport, repoRoot: tmpRoot });
+		ok("a JSON report that isn't an array yields no findings rather than throwing", objectResult.ok === true && objectResult.findings.length === 0, JSON.stringify(objectResult));
+	}
+});
+
+test("scrubPaths: an absent paths list, an unstattable path, and a directory finding with no usable File", async () => {
+	{
+		let isExecCalled = false;
+		const neverExec = async () => {
+			isExecCalled = true;
+			throw new Error("should never be called");
+		};
+		const emptyResult = await scrubPaths({ termsText: "Widgetco", exec: neverExec, repoRoot: tmpRoot });
+		ok("an absent paths list reports clean with no findings", emptyResult.ok === true && emptyResult.findings.length === 0, JSON.stringify(emptyResult));
+		ok("an absent paths list never spawns gitleaks at all", isExecCalled === false);
+
+		// A path that can't be stat'd at all must be treated as a single file,
+		// not a directory — so its findings map back to the caller's own path
+		// rather than trusting gitleaks' own relative `File` value.
+		const missingPath = join(tmpRoot, "no-such-file-here.txt");
+		const fakeExecMissing = async (_cmd, args) => {
+			const reportIdx = args.indexOf("--report-path");
+			writeFileSync(args[reportIdx + 1], JSON.stringify([{ RuleID: "term-1", StartLine: 1, Match: "Widgetco", File: "somewhere-else.txt" }]));
+			return { stdout: "", stderr: "" };
+		};
+		const missingResult = await scrubPaths({ paths: [missingPath], termsText: "Widgetco", exec: fakeExecMissing, repoRoot: tmpRoot });
+		ok("a path that cannot be stat'd falls back to the single-file mapping", missingResult.findings[0]?.file === missingPath, JSON.stringify(missingResult.findings));
+
+		const dirPath = mkdtempSync(join(tmpRoot, "scan-dir-nofile-"));
+		const fakeExecDir = async (_cmd, args) => {
+			const reportIdx = args.indexOf("--report-path");
+			writeFileSync(args[reportIdx + 1], JSON.stringify([{ RuleID: "term-1", StartLine: 2, Match: "Widgetco", File: 17 }]));
+			return { stdout: "", stderr: "" };
+		};
+		const dirResult = await scrubPaths({ paths: [dirPath], termsText: "Widgetco", exec: fakeExecDir, repoRoot: tmpRoot });
+		ok("a directory finding whose File isn't a string reports file null, never a raw number", dirResult.findings[0]?.file === null, JSON.stringify(dirResult.findings));
+	}
+});
+
+test("extractClaims: an absent file list, an unreadable file, and a bare PR number with no repo to resolve against", async () => {
+	{
+		ok("an absent files list extracts nothing rather than throwing", extractClaims({ fs: { readFileSync: () => "" } }).length === 0);
+
+		const throwingFs = {
+			readFileSync: () => {
+				throw new Error("ENOENT: no such file or directory");
+			},
+		};
+		const skipped = extractClaims({ files: ["gone.md", "also-gone.md"], fs: throwingFs });
+		ok("an unreadable file is skipped, never fatal to the whole extraction", skipped.length === 0, JSON.stringify(skipped));
+
+		// No `# owner/repo` heading and no earlier GitHub URL anywhere in the
+		// file — the bare number has nothing to resolve against.
+		const fixtureText = ["No heading here.", "Retire this pin once PR #42 merges."].join("\n");
+		const claims = extractClaims({ files: ["notes.md"], fs: { readFileSync: () => fixtureText } });
+		ok("the condition line is still extracted", claims.length === 1, JSON.stringify(claims));
+		ok(
+			"an unresolvable bare PR #<n> stays url null / kind none, never a URL against a guessed repo",
+			claims[0].url === null && claims[0].kind === "none" && claims[0].condition === true,
+			JSON.stringify(claims[0]),
+		);
+	}
+});
+
+test("recheckClaims: an absent claims list and a zero call budget both stop before any gh api call", async () => {
+	{
+		let isExecCalled = false;
+		const neverExec = async () => {
+			isExecCalled = true;
+			throw new Error("should never be called");
+		};
+		const absentResult = await recheckClaims({ exec: neverExec });
+		ok(
+			"an absent claims list returns four empty buckets",
+			absentResult.fired.length === 0 && absentResult.contradicted.length === 0 && absentResult.unconfirmable.length === 0 && absentResult.current.length === 0,
+			JSON.stringify(absentResult),
+		);
+		ok("an absent claims list reports budget.used 0 and never calls exec", absentResult.budget.used === 0 && isExecCalled === false, JSON.stringify(absentResult.budget));
+
+		const claims = [{ file: "f.md", line: 1, text: "x", url: "https://github.com/o/r/pull/1", kind: "pr", condition: false }];
+		const zeroBudget = await recheckClaims({ claims, exec: neverExec, maxCalls: 0 });
+		ok("a zero call budget never even probes the rate limit", isExecCalled === false);
+		ok(
+			"every claim lands in unconfirmable with the budget reason, never dropped",
+			zeroBudget.unconfirmable.length === 1 && zeroBudget.unconfirmable[0].reason === "call budget exhausted",
+			JSON.stringify(zeroBudget.unconfirmable),
+		);
+		ok("budget reports used 0 of max 0", zeroBudget.budget.used === 0 && zeroBudget.budget.max === 0, JSON.stringify(zeroBudget.budget));
+	}
+});
+
+test("recheckClaims: an empty rate_limit payload reads as an unknown quota and stops the batch", async () => {
+	{
+		const claims = [{ file: "f.md", line: 1, text: "x", url: "https://github.com/o/r/pull/1", kind: "pr", condition: false }];
+		let perClaimCalls = 0;
+		const fakeExec = async (_cmd, args) => {
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: "" };}
+			perClaimCalls += 1;
+			throw new Error(`should not have called ${endpoint}`);
+		};
+		const result = await recheckClaims({ claims, exec: fakeExec });
+		ok("no per-claim call runs when the remaining quota can't be read at all", perClaimCalls === 0);
+		ok(
+			"the claim lands in unconfirmable, naming the unreadable remaining quota",
+			result.unconfirmable.length === 1 && result.unconfirmable[0].reason === "gh api core rate limit too low to recheck (remaining undefined)",
+			JSON.stringify(result.unconfirmable),
+		);
+	}
+});
+
+test("recheckClaims: an empty gh api payload and a claim with no text still bucket cleanly", async () => {
+	{
+		const claims = [{ file: "f.md", line: 1, text: "", url: "https://github.com/o/r/pull/1", kind: "pr", condition: true }];
+		const fakeExec = async (_cmd, args) => {
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 5000 } } }) };}
+			if (endpoint === "repos/o/r/pulls/1") {return { stdout: "" };}
+			throw new Error(`unexpected endpoint ${endpoint}`);
+		};
+		const result = await recheckClaims({ claims, exec: fakeExec });
+		ok("an empty payload reads as neither open nor merged, so a condition claim stays current", result.current.length === 1 && result.fired.length === 0, JSON.stringify(result));
+		ok(
+			"live state is all-false rather than undefined",
+			result.current[0].live.open === false && result.current[0].live.merged === false && result.current[0].live.published === false && result.current[0].live.fired === false,
+			JSON.stringify(result.current[0].live),
+		);
+		ok("a claim whose text is empty asserts nothing, so it is never contradicted", result.contradicted.length === 0, JSON.stringify(result.contradicted));
+	}
+});
+
+test("recheckClaims: an empty or non-array releases payload leaves `published` false without failing the claim", async () => {
+	{
+		const claims = [{ file: "f.md", line: 1, text: "unpin once this ships", url: "https://github.com/o/r/pull/7", kind: "pr", condition: true }];
+		const makeExec = (releasesStdout) => async (_cmd, args) => {
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 5000 } } }) };}
+			if (endpoint === "repos/o/r/pulls/7") {return { stdout: JSON.stringify({ state: "closed", merged_at: "2026-01-01T00:00:00Z" }) };}
+			if (endpoint === "repos/o/r/releases?per_page=5") {return { stdout: releasesStdout };}
+			throw new Error(`unexpected endpoint ${endpoint}`);
+		};
+		const blankResult = await recheckClaims({ claims, exec: makeExec("") });
+		ok("an empty releases payload still fires the merged PR", blankResult.fired.length === 1, JSON.stringify(blankResult.fired));
+		ok("an empty releases payload leaves published false", blankResult.fired[0].live.published === false, JSON.stringify(blankResult.fired[0]));
+
+		const objectResult = await recheckClaims({ claims, exec: makeExec(JSON.stringify({ message: "Not Found" })) });
+		ok(
+			"a releases payload that isn't an array leaves published false rather than throwing",
+			objectResult.fired.length === 1 && objectResult.fired[0].live.published === false,
+			JSON.stringify(objectResult.fired[0]),
+		);
+	}
+});
+
+test("recheckClaims: a release tag that resolves fires the claim; a tag with no publish date does not", async () => {
+	{
+		const claims = [
+			{
+				file: "f.md",
+				line: 1,
+				text: "drop the shim once https://github.com/o/r/releases/tag/v2.0.0 ships",
+				url: "https://github.com/o/r/releases/tag/v2.0.0",
+				kind: "release",
+				condition: true,
+			},
+		];
+		const publishedExec = async (_cmd, args) => {
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 5000 } } }) };}
+			if (endpoint === "repos/o/r/releases/tags/v2.0.0") {return { stdout: JSON.stringify({ tag_name: "v2.0.0", published_at: "2026-09-04T17:37:39Z" }) };}
+			throw new Error(`unexpected endpoint ${endpoint}`);
+		};
+		const result = await recheckClaims({ claims, exec: publishedExec });
+		ok("a published release tag fires its condition claim", result.fired.length === 1 && result.fired[0].line === 1, JSON.stringify(result));
+		ok(
+			"a release's live state is published only — never open, never merged",
+			result.fired[0].live.published === true && result.fired[0].live.open === false && result.fired[0].live.merged === false,
+			JSON.stringify(result.fired[0].live),
+		);
+
+		const draftExec = async (_cmd, args) => {
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 5000 } } }) };}
+			if (endpoint === "repos/o/r/releases/tags/v2.0.0") {return { stdout: JSON.stringify({ tag_name: "v2.0.0", published_at: null }) };}
+			throw new Error(`unexpected endpoint ${endpoint}`);
+		};
+		const draftResult = await recheckClaims({ claims, exec: draftExec });
+		ok("a tag that resolves but has never published does not fire — it stays current", draftResult.current.length === 1 && draftResult.fired.length === 0, JSON.stringify(draftResult));
+		ok("that tag's live state reports published false", draftResult.current[0].live.published === false, JSON.stringify(draftResult.current[0].live));
+	}
+});
+
+test("recheckClaims: a line asserting 'merged' against a still-open PR is contradicted", async () => {
+	{
+		const claims = [{ file: "f.md", line: 1, text: "Already merged upstream — safe to drop this shim.", url: "https://github.com/o/r/pull/3", kind: "pr", condition: false }];
+		const fakeExec = async (_cmd, args) => {
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 5000 } } }) };}
+			if (endpoint === "repos/o/r/pulls/3") {return { stdout: JSON.stringify({ state: "open" }) };}
+			throw new Error(`unexpected endpoint ${endpoint}`);
+		};
+		const result = await recheckClaims({ claims, exec: fakeExec });
+		ok("a 'merged' assertion against an unmerged PR lands in contradicted", result.contradicted.length === 1 && result.contradicted[0].line === 1, JSON.stringify(result));
+		ok("the entry records which word the line asserted", result.contradicted[0].asserted === "merged", JSON.stringify(result.contradicted[0]));
+		ok("the entry carries the true live state that contradicted it", result.contradicted[0].live.merged === false && result.contradicted[0].live.open === true, JSON.stringify(result.contradicted[0].live));
+	}
+});
+
+test("recheckClaims: an ambiguous reference whose issue-fallback returns an empty payload still buckets cleanly", async () => {
+	{
+		const claims = [{ file: "f.md", line: 1, text: "retire once org/widget#8 ships", url: "https://github.com/org/widget/pull/8", kind: "pr", condition: true, ambiguous: true }];
+		const fakeExec = async (_cmd, args) => {
+			const [, endpoint] = args;
+			if (endpoint === "rate_limit") {return { stdout: JSON.stringify({ resources: { core: { remaining: 5000 } } }) };}
+			if (endpoint === "repos/org/widget/pulls/8") {throw new Error("gh: Not Found (HTTP 404)");}
+			if (endpoint === "repos/org/widget/issues/8") {return { stdout: "" };}
+			throw new Error(`unexpected endpoint ${endpoint}`);
+		};
+		const result = await recheckClaims({ claims, exec: fakeExec });
+		ok(
+			"an empty issue payload reads as an unclosed issue — current, never unconfirmable",
+			result.current.length === 1 && result.unconfirmable.length === 0 && result.fired.length === 0,
+			JSON.stringify(result),
+		);
+		ok("the claim's live state comes back all-false rather than undefined", result.current[0].live.fired === false && result.current[0].live.open === false, JSON.stringify(result.current[0].live));
+	}
+});

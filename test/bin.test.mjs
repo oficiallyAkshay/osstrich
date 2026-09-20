@@ -50,6 +50,20 @@ test('a known command dispatches and its return code passes through unchanged', 
   assert.match(deps.stdout.text, /OSSTRICH_STATE_DIR/);
 });
 
+test("main() dispatches 'init' through to the real init command (not just tested standalone via initCommand.run)", async () => {
+  const deps = baseDeps({ exec: async () => ({ exitCode: 0 }) });
+  const code = await main(['init', '--yes'], deps);
+  assert.equal(code, 0);
+  assert.match(deps.stdout.text, /gh: found/);
+});
+
+test("main() dispatches a CORE_COMMANDS entry through dispatchCore's real (non-stubbed) lazy import", async () => {
+  const deps = baseDeps({ exec: async () => ({ stdout: '{}' }) });
+  const code = await main(['scrub', '--help'], deps);
+  assert.equal(code, 2);
+  assert.match(deps.stdout.text, /usage: osstrich <command>/);
+});
+
 test('an OsstrichError thrown by a command maps to exit 2 with its hint', async () => {
   const fs = createFakeFs({ '/repo/.osstrich.json': '{ broken' });
   const deps = baseDeps({ fs });
@@ -92,6 +106,17 @@ test('dispatchCore passes the command\'s own exit code through unchanged (clean/
     importCore: async () => ({ main: async () => 1 }),
   });
   assert.equal(findingsCode, 1);
+});
+
+test('dispatchCore with no importCore override really imports lib/cli-core.mjs', async () => {
+  const deps = baseDeps({ exec: async () => ({ stdout: '{}' }) });
+  // scrub --help never touches the filesystem/agent beyond what
+  // defaultDeps() itself resolves — the real lib/cli-core.mjs module is
+  // lazily imported here for the first time via dispatchCore's own default
+  // `importCore`, not a test-supplied stub.
+  const code = await dispatchCore('scrub', ['--help'], deps);
+  assert.equal(code, 2);
+  assert.match(deps.stdout.text, /usage: osstrich <command>/);
 });
 
 test('buildDeps wires real fs/exec/prompts and the current process env', () => {

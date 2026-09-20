@@ -18,7 +18,7 @@
   },
   "license": "MIT",
   "scripts": {
-    "test": "node --test --experimental-test-coverage --test-coverage-include=lib/** --test-coverage-include=bin/** --test-coverage-lines=98 --test-coverage-branches=85 --test-coverage-functions=96 --test-reporter=lcov --test-reporter-destination=coverage.lcov --test-reporter=spec --test-reporter-destination=stdout test/**/*.test.mjs",
+    "test": "node --test --experimental-test-coverage --test-coverage-include=lib/** --test-coverage-include=bin/** --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test-reporter=lcov --test-reporter-destination=coverage.lcov --test-reporter=spec --test-reporter-destination=stdout test/**/*.test.mjs",
     "check": "node --test 'test/**/*.test.mjs'",
     "lint": "eslint ."
   },
