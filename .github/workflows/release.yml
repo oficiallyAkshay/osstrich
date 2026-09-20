@@ -14,7 +14,7 @@ jobs:
       # `gh release create` writes the release and uploads the tarball to it.
       contents: write
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
       - run: npm ci
       - run: node --test 'test/**/*.test.mjs'
       - run: |
