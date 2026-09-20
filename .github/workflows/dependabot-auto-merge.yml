@@ -1,0 +1,38 @@
+# A scheduled workflow on a public repository is disabled after 60 days
+# without a commit, and clonometer.yml's own schedule cannot recover a gap
+# past 13 days if it goes quiet that long. Arming auto-merge on every
+# Dependabot pull request keeps commits landing on main on their own, which
+# resets that clock without anyone watching for it. Auto-merge only arms
+# the merge: the branch ruleset's required "ci" check still has to pass
+# before GitHub actually merges anything.
+name: dependabot auto-merge
+
+on:
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: dependabot-auto-merge-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  auto-merge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: fetch dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: enable auto-merge
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --rebase "$PR_URL"
