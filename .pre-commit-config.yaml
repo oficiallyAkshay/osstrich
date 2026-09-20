@@ -6,6 +6,15 @@
 # from what CI actually runs; `npx eslint` always uses THIS repo's installed
 # eslint.config.mjs and plugin versions.
 repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      # Staged changes only. CI's lint job runs gitleaks-action separately,
+      # over the whole history, which this hook cannot see. `osstrich`
+      # itself also shells out to a `gitleaks` on PATH at runtime, but that
+      # scrubs the diffs it prepares for an upstream repo, never this one.
+      - id: gitleaks
+
   - repo: local
     hooks:
       - id: eslint

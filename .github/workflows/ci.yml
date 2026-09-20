@@ -67,20 +67,31 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      # gitleaks reads pull request metadata to report what it finds.
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # gitleaks scans the whole history below, not just the working tree.
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
       - run: npm ci
-      # The same hook contributors run locally (.pre-commit-config.yaml), so
+      # The same hooks contributors run locally (.pre-commit-config.yaml), so
       # CI and the pre-commit config cannot drift — a change to how the
-      # eslint hook is invoked only has to be made once. pipx ships
-      # preinstalled on the runner image, so this needs no extra setup step
-      # for a repo with no other Python use.
+      # eslint or gitleaks hook is invoked only has to be made once. pipx
+      # ships preinstalled on the runner image, so this needs no extra setup
+      # step for a repo with no other Python use. gitleaks's own pre-commit
+      # hook only sees staged files, which is nothing on a fresh checkout;
+      # the step below covers the full history that hook cannot see.
       - run: pipx run pre-commit run --all-files --show-diff-on-failure
+
+      - name: secrets scan
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # The one context a required-checks rule needs to know. It exists on every
   # run whatever the matrix does, and fails unless every job it needs
