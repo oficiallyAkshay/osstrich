@@ -24,3 +24,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: oficiallyAkshay/readmerlin@65882c2047e9170dbe2132ada0f38c4c127e5b91 # v1.0.0
+        with:
+          # Runs every count-source command in readmerlin.json so a count
+          # badge that drifts from what the command actually prints fails
+          # the check, instead of only warning that it went unverified.
+          exec: "true"
