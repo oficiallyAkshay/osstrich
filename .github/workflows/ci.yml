@@ -1,0 +1,65 @@
+# The test suite on every push to main and every pull request. release.yml
+# runs the same tests, but only once a version tag exists, which is far too
+# late to learn that main is broken.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: {}
+
+# A second push to a pull request supersedes the first, so cancel the run it
+# replaced. Pushes to main key on the commit instead, so a rapid second push
+# gets its own group rather than dropping the first push's run.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      # One version failing should still report the other, rather than
+      # cancelling it and leaving the result unknown.
+      fail-fast: false
+      matrix:
+        # Not 20, though package.json's engines field still says ">=20":
+        # execa and cockatiel both require Node 22, so the suite cannot run
+        # there at all. 22 is the real floor and 24 is the current line.
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm test
+
+  # The one context a required-checks rule needs to know. It exists on every
+  # run whatever the matrix does, and fails unless every job it needs
+  # actually succeeded.
+  ci:
+    needs: [test]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: gate
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: ${RESULTS}"
+          for result in ${RESULTS}; do
+            if [ "${result}" != "success" ]; then
+              echo "a required job did not succeed" >&2
+              exit 1
+            fi
+          done
