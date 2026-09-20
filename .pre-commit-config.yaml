@@ -15,6 +15,16 @@ repos:
       # scrubs the diffs it prepares for an upstream repo, never this one.
       - id: gitleaks
 
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/woodruffw/zizmor-pre-commit
+    rev: v1.30.1
+    hooks:
+      - id: zizmor
+
   - repo: local
     hooks:
       - id: eslint
