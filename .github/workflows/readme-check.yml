@@ -1,0 +1,26 @@
+name: readme check
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 9 * * 1"
+permissions: {}
+
+# Keyed like every other workflow here: by ref on a pull request, cancelling
+# the run it replaced; by commit sha on a push or the weekly schedule, where
+# there is nothing to cancel.
+concurrency:
+  group: readme-check-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  readmerlin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oficiallyAkshay/readmerlin@65882c2047e9170dbe2132ada0f38c4c127e5b91   # a commit of main; init-workflow fills it in
