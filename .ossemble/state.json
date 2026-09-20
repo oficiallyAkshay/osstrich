@@ -1,0 +1,5 @@
+{
+  "optins": {
+    "TRAFFIC_TOKEN": "clonometer.yml needs its own fine-grained TRAFFIC_TOKEN secret to read and write clone and view counts, since the built-in GITHUB_TOKEN cannot do that."
+  }
+}
