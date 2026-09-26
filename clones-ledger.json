@@ -1,0 +1,83 @@
+{
+  "days": {
+    "2026-09-05": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-09-06": {
+      "count": 76,
+      "uniques": 34
+    },
+    "2026-09-07": {
+      "count": 8,
+      "uniques": 5
+    },
+    "2026-09-08": {
+      "count": 12,
+      "uniques": 8
+    },
+    "2026-09-09": {
+      "count": 4,
+      "uniques": 4
+    },
+    "2026-09-10": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-09-11": {
+      "count": 1,
+      "uniques": 1
+    },
+    "2026-09-12": {
+      "count": 3,
+      "uniques": 2
+    },
+    "2026-09-13": {
+      "count": 1,
+      "uniques": 1
+    },
+    "2026-09-14": {
+      "count": 1,
+      "uniques": 1
+    },
+    "2026-09-15": {
+      "count": 1,
+      "uniques": 1
+    },
+    "2026-09-16": {
+      "count": 0,
+      "uniques": 0
+    },
+    "2026-09-17": {
+      "count": 1,
+      "uniques": 1
+    },
+    "2026-09-18": {
+      "count": 1,
+      "uniques": 1
+    },
+    "2026-09-19": {
+      "count": 15,
+      "uniques": 8
+    },
+    "2026-09-20": {
+      "count": 556,
+      "uniques": 133
+    },
+    "2026-09-21": {
+      "count": 22,
+      "uniques": 14
+    },
+    "2026-09-22": {
+      "count": 30,
+      "uniques": 12
+    },
+    "2026-09-23": {
+      "count": 12,
+      "uniques": 8
+    }
+  },
+  "repo": "oficiallyAkshay/osstrich",
+  "schema": 1,
+  "since": "2026-09-05"
+}
