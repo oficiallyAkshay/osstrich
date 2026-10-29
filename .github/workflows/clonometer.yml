@@ -4,7 +4,7 @@
 # stop.
 name: clonometer
 on:
-  schedule: [{cron: "17 3 * * *"}]
+  schedule: [{cron: "17 8 * * *"}]
   workflow_dispatch:
 permissions: {}
 concurrency: {group: clonometer}
