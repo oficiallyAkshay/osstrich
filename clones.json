@@ -1,0 +1,18 @@
+{
+  "badge": "147 (7d) \u2022 1,356 (all-time)",
+  "last7": 147,
+  "last7_short": "147",
+  "metric": "clones",
+  "repo": "oficiallyAkshay/osstrich",
+  "schema": 1,
+  "since": "2026-09-05",
+  "total": 1356,
+  "total_short": "1,356",
+  "updated": "2026-10-30",
+  "window": {
+    "count": 248,
+    "days": 14,
+    "uniques": 78
+  },
+  "window_short": "248"
+}
