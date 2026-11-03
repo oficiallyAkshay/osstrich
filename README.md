@@ -50,6 +50,8 @@ Look elsewhere when:
 
 Install it from the tarball GitHub attaches to each release; the exact command is in CONTRIBUTING.
 
+The latest release is v0.0.1, and its tarball matches commit 7b825d1. The tarball lags main: later changes to `lib`, `bin` and `skill`, including `skill/references/how-it-thinks.md` that AGENTS.md points to, are not in it.
+
 ## How it compares
 
 | | [oficiallyAkshay/osstrich](https://github.com/oficiallyAkshay/osstrich) | [OpenHands/OpenHands](https://github.com/OpenHands/OpenHands) | [dependabot/dependabot-core](https://github.com/dependabot/dependabot-core) | [cutenode/good-first-issue](https://github.com/cutenode/good-first-issue) |
