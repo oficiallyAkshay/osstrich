@@ -4,7 +4,7 @@
 # stop.
 name: clonometer
 on:
-  schedule: [{cron: "17 8 * * *"}]
+  schedule: [{cron: "17 * * * *"}]
   workflow_dispatch:
 permissions: {}
 concurrency: {group: clonometer}
@@ -14,7 +14,8 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     steps:
-      - uses: oficiallyAkshay/clonometer@bc07967d1aafcbf67af9eb0ad230650de0be8ca4 # v1.1.0
+      - uses: oficiallyAkshay/clonometer@b1cc1b48ac9a6a38ae505cf060a0a1de82682413 # main, runs per day
         with:
           token: ${{ secrets.TRAFFIC_TOKEN }}
+          runs-per-day: ${{ vars.CLONOMETER_RUNS_PER_DAY }}
           metrics: clones,views
