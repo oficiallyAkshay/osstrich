@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     steps:
-      - uses: oficiallyAkshay/clonometer@b1cc1b48ac9a6a38ae505cf060a0a1de82682413 # main, runs per day
+      - uses: oficiallyAkshay/clonometer@b1cc1b48ac9a6a38ae505cf060a0a1de82682413 # v1.2.0
         with:
           token: ${{ secrets.TRAFFIC_TOKEN }}
           runs-per-day: ${{ vars.CLONOMETER_RUNS_PER_DAY }}
