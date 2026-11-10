@@ -2,3 +2,5 @@ node_modules/
 *.tgz
 .tmp-state*/
 coverage.lcov
+.env
+.env.keys
