@@ -75,3 +75,5 @@ No credential of its own. On PATH: `gh`, `gitleaks`, one headless coding agent C
 - ❌ leaves personal information or your own internal names in a diff, commit or pull request body it sends externally
 
 By default every diff is scrubbed for secrets before it is proposed, and nothing opens, pushes or comments without your explicit go. It needs Node 22 or newer.
+
+`osstrich env set` refuses to write a `.env` that git would track: it asks you to add `.env` to `.gitignore` first. When dotenvx manages the file, the value reaches `dotenvx set` as a command-line argument, so a process listing on your machine can show it for a moment; dotenvx documents no stdin or environment-variable form.
