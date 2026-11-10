@@ -21,15 +21,17 @@
  * Exits 0 on all-pass, 1 on any failure.
  */
 
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { RATE_LIMIT_FLOOR, RECHECK_CONCURRENCY, extractClaims, recheckClaims } from "../lib/recheck.mjs";
 import { resolveGitleaksBin, scrubPaths, scrubText } from "../lib/scrub.mjs";
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 
-/** A fixture precondition: this bare dir holds no node_modules gitleaks. */
+/*
+ * A fixture precondition: this bare dir holds no node_modules gitleaks.
+ */
 function gitleaksBinPath(repoRoot) {
 	return join(repoRoot, "node_modules", ".bin", "gitleaks");
 }
@@ -318,6 +320,18 @@ test("scrubText: a fake gitleaks on PATH, no node_modules in the target, complet
 	} finally {
 		process.env.PATH = savedPath;
 	}
+});
+
+test("resolveGitleaksBin: skips a directory named gitleaks, a non-executable file and empty entries; no PATH at all finds nothing", { skip: process.platform === "win32" }, () => {
+	const dirWithDir = mkdtempSync(join(tmpRoot, "dir-bin-"));
+	mkdirSync(join(dirWithDir, "gitleaks"));
+	const dirWithPlainFile = mkdtempSync(join(tmpRoot, "plain-bin-"));
+	writeFileSync(join(dirWithPlainFile, "gitleaks"), "not executable", { mode: 0o644 });
+	const goodDir = mkdtempSync(join(tmpRoot, "good-bin-"));
+	writeFileSync(join(goodDir, "gitleaks"), "#!/bin/sh\n", { mode: 0o755 });
+	const PATH = ["", dirWithDir, dirWithPlainFile, goodDir].join(delimiter);
+	ok("only the executable file counts", resolveGitleaksBin({ PATH }) === join(goodDir, "gitleaks"));
+	ok("an env with no PATH finds nothing", resolveGitleaksBin({}) === null);
 });
 
 test("scrubText: gitleaks missing from PATH is a soft failure whose message names PATH", async () => {
