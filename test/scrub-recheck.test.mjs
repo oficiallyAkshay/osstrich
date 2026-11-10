@@ -333,6 +333,14 @@ test("scrubText: gitleaks missing from PATH is a soft failure whose message name
 	}
 });
 
+test("scrubText: an injected exec that reports a missing binary (as the CLI's execa does) also names PATH", async () => {
+	const enoentExec = async () => {
+		throw Object.assign(new Error("spawn gitleaks ENOENT"), { code: "ENOENT" });
+	};
+	const result = await scrubText({ text: "x", termsText: "Widgetco", exec: enoentExec });
+	ok("ok is false and the error names PATH", result.ok === false && result.error.includes("PATH"), JSON.stringify(result));
+});
+
 test("scrubText: REAL gitleaks binary, skipped cleanly when gitleaks is not on PATH", async (t) => {
 	if (!resolveGitleaksBin(process.env)) {
 		t.skip("gitleaks not on PATH");
