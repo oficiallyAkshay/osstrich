@@ -7,8 +7,7 @@
  * failure-path scrub tests inject a fake `exec` that stands in for the
  * gitleaks subprocess — writing a canned JSON report to the report path it
  * was given, or throwing — so THE REAL BINARY IS NOT INVOKED for any of
- * those. One additional test, guarded by `existsSync` on the real vendored
- * binary, spawns the actual pinned `gitleaks` (via the module's real
+ * those. One additional test, guarded by the PATH lookup `scrub` itself uses, spawns the actual pinned `gitleaks` (via the module's real
  * default exec) against a fabricated body — a true end-to-end check of the
  * shipped `references/scrub-terms.txt` + config generator, never run
  * against a fake.
@@ -26,24 +25,14 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RATE_LIMIT_FLOOR, RECHECK_CONCURRENCY, extractClaims, recheckClaims } from "../lib/recheck.mjs";
-import { scrubPaths, scrubText } from "../lib/scrub.mjs";
+import { resolveGitleaksBin, scrubPaths, scrubText } from "../lib/scrub.mjs";
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 
-/** `resolveGitleaksBin`'s own (internal-only) path formula — `node_modules/
- * .bin/gitleaks` relative to a repo root — reproduced here just to set up
- * fixture preconditions ("this bare dir has no vendored binary present");
- * never exported by lib/scrub.mjs, so a test that needs this computes it
- * locally. */
+/** A fixture precondition: this bare dir holds no node_modules gitleaks. */
 function gitleaksBinPath(repoRoot) {
 	return join(repoRoot, "node_modules", ".bin", "gitleaks");
 }
-
-// resolveGitleaksBin (lib/scrub.mjs) only ever spawns the vendored binary
-// at node_modules/.bin/gitleaks — never a PATH lookup — so a gitleaks on
-// PATH but not vendored there is not "available" to the real default exec
-// this test drives. Gating the skip on PATH too would run the real exec
-// straight into an ENOENT for that machine instead of skipping cleanly.
 
 function ok(name, cond, detail = "") {
 	assert.ok(cond, detail ? `${name} — ${detail}` : name);
@@ -311,9 +300,42 @@ test("scrubPaths / scrubText: a finding's `file` field is populated per source k
 	}
 });
 
-test("scrubText: REAL gitleaks binary, skipped cleanly when not vendored in node_modules/.bin", async (t) => {
-	if (!existsSync(gitleaksBinPath(process.cwd()))) {
-		t.skip("gitleaks not vendored in node_modules/.bin");
+test("scrubText: a fake gitleaks on PATH, no node_modules in the target, completes without error", { skip: process.platform === "win32" }, async () => {
+	const binDir = mkdtempSync(join(tmpRoot, "fake-bin-"));
+	const fakeBin = join(binDir, "gitleaks");
+	writeFileSync(
+		fakeBin,
+		`#!/bin/sh\nwhile [ $# -gt 0 ]; do [ "$1" = "--report-path" ] && echo '[]' > "$2"; shift; done\nexit 0\n`,
+		{ mode: 0o755 },
+	);
+	const bareRoot = mkdtempSync(join(tmpRoot, "no-node-modules-"));
+	const savedPath = process.env.PATH;
+	process.env.PATH = binDir;
+	try {
+		ok("the shared lookup finds the fake on PATH", resolveGitleaksBin(process.env) === fakeBin);
+		const result = await scrubText({ text: "nothing here", termsText: "Widgetco", repoRoot: bareRoot });
+		ok("scrub completes (not exit 2) with the fake on PATH", result.error === undefined && result.ok === true, JSON.stringify(result));
+	} finally {
+		process.env.PATH = savedPath;
+	}
+});
+
+test("scrubText: gitleaks missing from PATH is a soft failure whose message names PATH", async () => {
+	const emptyDir = mkdtempSync(join(tmpRoot, "empty-bin-"));
+	const savedPath = process.env.PATH;
+	process.env.PATH = emptyDir;
+	try {
+		const result = await scrubText({ text: "x", termsText: "Widgetco" });
+		ok("ok is false with an error", result.ok === false && typeof result.error === "string", JSON.stringify(result));
+		ok("the error names PATH", result.error.includes("PATH"), result.error);
+	} finally {
+		process.env.PATH = savedPath;
+	}
+});
+
+test("scrubText: REAL gitleaks binary, skipped cleanly when gitleaks is not on PATH", async (t) => {
+	if (!resolveGitleaksBin(process.env)) {
+		t.skip("gitleaks not on PATH");
 		return;
 	}
 
