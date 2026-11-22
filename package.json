@@ -24,7 +24,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@clack/prompts": "1.8.1",
+    "@clack/prompts": "1.9.0",
     "@dotenvx/dotenvx": "2.38.2",
     "cockatiel": "4.0.0",
     "execa": "10.2.1",
@@ -32,7 +32,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
-    "eslint": "10.14.0",
+    "eslint": "10.15.0",
     "eslint-plugin-n": "18.5.0",
     "eslint-plugin-unicorn": "76.0.0",
     "globals": "17.14.0"
