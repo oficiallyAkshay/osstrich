@@ -384,7 +384,7 @@ test("scrubText: REAL gitleaks with NO term file still flags a synthetic token (
 	const token = ["ghp", "aB3dE6gH9jK2mN5pQ8sT1vW4yZ7bC0eF3hJ6"].join("_");
 	const result = await scrubText({ text: `token = ${token}`, termsText: "", repoRoot: process.cwd() });
 	ok("real gitleaks ran (no error)", result.error === undefined, JSON.stringify(result));
-	ok("a default-rule finding comes back with no terms at all", result.ok === false && result.findings.length >= 1, JSON.stringify(result));
+	ok("a default-rule finding comes back with no terms at all", result.ok === false && result.findings.length > 0, JSON.stringify(result));
 });
 
 test("scrubText: the generated config extends gitleaks' built-in rules", async () => {

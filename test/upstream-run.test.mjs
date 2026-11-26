@@ -1667,7 +1667,7 @@ test("scrub: no term file prints a warning, a term file does not, and nothing to
 		deps.termsPath = termsPath;
 		const code = await main(["scrub", "--text", "this body names SECRETNAME"], deps);
 		ok("a configured term file still flags its terms", code === 1);
-		ok("a configured term file prints no warning", !stderr.lines.some((l) => l.includes("no term list")), JSON.stringify(stderr.lines));
+		ok("a configured term file prints no warning", stderr.lines.every((l) => !l.includes("no term list")), JSON.stringify(stderr.lines));
 	}
 	{
 		const termsPath = join(runsDir, "comments-only.txt");
