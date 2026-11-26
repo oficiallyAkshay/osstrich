@@ -1644,6 +1644,41 @@ test("scrub: findings, clean, paths, an engine failure, --help, and an unrecogni
 	ok("the unrecognized-flag usage print matches --help's", stdout.lines.some((l) => l.includes("usage: osstrich <command>")));
 });
 
+test("scrub: no term file prints a warning, a term file does not, and nothing to scan exits 2 with usage", async () => {
+	const runsDir = mkdtempSync(join(tmpdir(), "osstrich-cli-scrub-warn-"));
+	{
+		const { deps, stdout, stderr } = makeScrubDeps(runsDir);
+		const code = await main(["scrub", "--text", "nothing sensitive here"], deps);
+		ok("a scan with no term file still runs and exits 0 when clean", code === 0);
+		ok(
+			"a missing term file prints a warning to stderr",
+			stderr.lines.some((l) => l.includes("osstrich scrub: no term list") && l.includes("secret rules only")),
+			JSON.stringify(stderr.lines),
+		);
+		stdout.lines.length = 0;
+		const emptyCode = await main(["scrub"], deps);
+		ok("a call with no text and no paths exits 2", emptyCode === 2);
+		ok("a call with nothing to scan prints the usage text", stdout.lines.some((l) => l.includes("usage: osstrich <command>")));
+	}
+	{
+		const termsPath = join(runsDir, "terms.txt");
+		writeFileSync(termsPath, "SECRETNAME\n");
+		const { deps, stderr } = makeScrubDeps(runsDir);
+		deps.termsPath = termsPath;
+		const code = await main(["scrub", "--text", "this body names SECRETNAME"], deps);
+		ok("a configured term file still flags its terms", code === 1);
+		ok("a configured term file prints no warning", !stderr.lines.some((l) => l.includes("no term list")), JSON.stringify(stderr.lines));
+	}
+	{
+		const termsPath = join(runsDir, "comments-only.txt");
+		writeFileSync(termsPath, "# nothing here\n\n");
+		const { deps, stderr } = makeScrubDeps(runsDir);
+		deps.termsPath = termsPath;
+		await main(["scrub", "--text", "x"], deps);
+		ok("a term file holding only comments also warns", stderr.lines.some((l) => l.includes("no term list")), JSON.stringify(stderr.lines));
+	}
+});
+
 test("recheck: prints every bucket's count, including empty ones", async () => {
 	const runsDir = mkdtempSync(join(tmpdir(), "osstrich-cli-recheck-"));
 	const { deps, stdout } = makeCodePhaseDeps({
