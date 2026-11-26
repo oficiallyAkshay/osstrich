@@ -32,7 +32,7 @@ When another open PR targets the same issue:
 
 ## Scrubbing — every draft, before it's shown or pushed
 
-Check every one of these, every time, not just when something seems sensitive:
+Check every one of these, every time, not just when something seems sensitive. Run `osstrich scrub <changed files>` on the diff and `osstrich scrub --text "<PR body>"` on the PR text; it always applies the standard secret rules, and any finding or failure stops the push.
 
 - **Your own internal system names** (your product/agent names, internal file paths, internal tooling) — grep the actual diff and PR body text for them; don't rely on having "kept them out" by intention alone.
 - **The contributor's own specific use case or infrastructure**, unless it's explicitly fine to include. A generic, tool-scoped reason for hitting the bug is fine; describing the private system it's embedded in is not, even if it feels like helpful color.

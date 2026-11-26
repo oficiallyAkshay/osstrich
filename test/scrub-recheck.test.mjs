@@ -375,6 +375,29 @@ test("scrubText: REAL gitleaks binary, skipped cleanly when gitleaks is not on P
 	// shown up above as a scan failure or a wrong finding count.
 });
 
+test("scrubText: REAL gitleaks with NO term file still flags a synthetic token (default rules load)", async (t) => {
+	if (!resolveGitleaksBin(process.env)) {
+		t.skip("gitleaks not on PATH");
+		return;
+	}
+	// Synthetic GitHub-token shape, assembled at runtime so no literal token sits in the repo.
+	const token = ["ghp", "aB3dE6gH9jK2mN5pQ8sT1vW4yZ7bC0eF3hJ6"].join("_");
+	const result = await scrubText({ text: `token = ${token}`, termsText: "", repoRoot: process.cwd() });
+	ok("real gitleaks ran (no error)", result.error === undefined, JSON.stringify(result));
+	ok("a default-rule finding comes back with no terms at all", result.ok === false && result.findings.length >= 1, JSON.stringify(result));
+});
+
+test("scrubText: the generated config extends gitleaks' built-in rules", async () => {
+	let capturedConfig = null;
+	const capturingExec = async (_cmd, args) => {
+		capturedConfig = readFileSync(args[args.indexOf("--config") + 1], "utf8");
+		writeFileSync(args[args.indexOf("--report-path") + 1], "[]");
+		return { stdout: "", stderr: "" };
+	};
+	await scrubText({ text: "x", termsText: "", exec: capturingExec, repoRoot: tmpRoot });
+	ok("config has [extend] useDefault = true", /\[extend\]\s*\nuseDefault = true/.test(capturedConfig), capturedConfig);
+});
+
 test("extractClaims: url + kind extraction, condition detection, no-checkable-artifact lines", async () => {
 	{
 		const fixtureText = [
