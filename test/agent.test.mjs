@@ -109,6 +109,21 @@ test('a failing stage retries once, then records "failed" and appends errors.jso
   assert.match(record.error, /agent exploded/);
 });
 
+test('a failing stage with retry off runs once and records attempts 1', async () => {
+  const runDir = tmpRunDir();
+  let callCount = 0;
+  const exec = async () => {
+    callCount += 1;
+    throw new Error('agent exploded');
+  };
+
+  const result = await runAgentStage({ stage: 'build-x', prompt: 'p', cwd: runDir, command: 'aider', model: null, env: {}, runDir, exec, timeoutMs: 5000, retry: false });
+
+  assert.equal(result.ok, false);
+  assert.equal(callCount, 1);
+  assert.equal(readStatus(runDir).phases.find((p) => p.stage === 'build-x').attempts, 1);
+});
+
 test('errorMessage prefers .shortMessage (the real execa error shape) over .message', async () => {
   const runDir = tmpRunDir();
   const exec = async () => {
