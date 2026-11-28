@@ -1386,7 +1386,7 @@ test("discover --resume: a valid verdict.json skips the verdict stage, and only 
 	const { deps, calls, stdout } = makeCodePhaseDeps({ runsDir });
 	const code = await main(["discover", "--slug", "resumeverdict", "--resume", "--headless"], deps);
 	ok("the resumed discover exits 0", code === 0, deps.stderr.text);
-	ok("the verdict stage did not run again", !calls.runAgentStage.some((c) => c.stage === "verdict"), JSON.stringify(calls.runAgentStage.map((c) => c.stage)));
+	ok("the verdict stage did not run again", calls.runAgentStage.every((c) => c.stage !== "verdict"), JSON.stringify(calls.runAgentStage.map((c) => c.stage)));
 	ok("a skip line accounts for the verdict", /osstrich verdict: skipped \(partial present\)/.test(stdout.text), stdout.text);
 	ok("only beta, the row without notes, is built", calls.runAgentStage.map((c) => c.stage).join(",") === "build-beta", JSON.stringify(calls.runAgentStage.map((c) => c.stage)));
 });
@@ -1401,8 +1401,8 @@ test("discover --resume: a missing or invalid verdict.json runs the verdict stag
 		return { ok: true, exitCode: 0, logPath: join(args.runDir, `${args.stage}.log`) };
 	};
 
-	for (const [label, setup] of [["missing", () => {}], ["invalid", () => writeFileSync(join(dir, "verdict.json"), JSON.stringify({}))]]) {
-		setup();
+	for (const label of ["missing", "invalid"]) {
+		if (label === "invalid") {writeFileSync(join(dir, "verdict.json"), JSON.stringify({}));}
 		const { deps, calls } = makeCodePhaseDeps({ runsDir, overrides: { runAgentStage: writeVerdictStage } });
 		const code = await main(["discover", "--slug", "resumenoverdict", "--resume", "--headless"], deps);
 		ok(`a ${label} verdict.json still exits 0`, code === 0, deps.stderr.text);
