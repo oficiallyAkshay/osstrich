@@ -74,6 +74,28 @@ test('env set shells out to dotenvx when the repo already uses it', async () => 
   assert.equal(fs.existsSync('/repo/.env'), false);
 });
 
+test('a failed dotenvx set names the setting and never shows the value', async () => {
+  const fs = createFakeFs({ '/repo/.env.keys': 'DOTENV_PRIVATE_KEY=x\n' });
+  const run = async (exec) => {
+    const stdout = createSink();
+    const stderr = createSink();
+    let code;
+    let thrown;
+    try {
+      code = await envRun(['set', 'GH_TOKEN', SECRET], baseDeps({ fs, exec, stdout, stderr }));
+    } catch (error) {
+      thrown = error;
+    }
+    const shown = `${stdout.text}${stderr.text}${thrown ? `${thrown.message} ${thrown.stack}` : ''}`;
+    assert.doesNotMatch(shown, new RegExp(SECRET));
+    assert.equal(thrown, undefined);
+    assert.equal(code, 1);
+    assert.match(stderr.text, /GH_TOKEN/);
+  };
+  await run(async (file, args) => { throw Object.assign(new Error(`Command failed with exit code 1: ${file} ${args.join(' ')}`), { exitCode: 1 }); });
+  await run(async (file, args) => { throw Object.assign(new Error(`spawn ${file} ENOENT ${args.join(' ')}`), { code: 'ENOENT' }); });
+});
+
 test('env set edits .env directly when dotenvx is not in use, preserving other lines', async () => {
   const fs = createFakeFs({
     '/repo/.env': '# a comment\nFOO=bar\n\nBAZ=qux\n',

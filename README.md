@@ -76,4 +76,6 @@ No credential of its own. On PATH: `gh`, `gitleaks`, one headless coding agent C
 
 By default every diff is scrubbed for secrets before it is proposed, and nothing opens, pushes or comments without your explicit go. It needs Node 22 or newer.
 
+From your repository's `.env`, osstrich passes on only the settings it reads: `OSSTRICH_STATE_DIR`, `OSSTRICH_MODEL`, `OSSTRICH_AGENT`, `GH_TOKEN`, `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`. Any other `.env` setting never reaches the agent; variables already in your shell environment pass through unchanged. To hand the agent another setting, export it in your shell. A failed `dotenvx set` names the setting and never shows its value.
+
 `osstrich env set` refuses to write a `.env` that git would track: it asks you to add `.env` to `.gitignore` first. When dotenvx manages the file, the value reaches `dotenvx set` as a command-line argument, so a process listing on your machine can show it for a moment; dotenvx documents no stdin or environment-variable form.
