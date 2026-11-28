@@ -1739,6 +1739,31 @@ test("scrub: findings, clean, paths, an engine failure, --help, and an unrecogni
 	ok("the unrecognized-flag usage print matches --help's", stdout.lines.some((l) => l.includes("usage: osstrich <command>")));
 });
 
+for (const flag of ["--bogus", "--help", "-h"]) {
+	test(`build, discover and the other core commands given ${flag} print the usage text, exit 2 and start no agent stage`, async () => {
+		const runsDir = mkdtempSync(join(tmpdir(), "osstrich-cli-badflag-"));
+		const argvs = [["discover", "--slug", "badflag", flag], ["build", "acme/widget#1", flag], ["inventory", flag], ["recheck", flag], ["record", "--dir", runsDir, flag]];
+		for (const argv of argvs) {
+			const { deps, stdout, stderr, calls } = makeCodePhaseDeps({ runsDir });
+			const code = await main(argv, deps);
+			assert.equal(code, 2, argv.join(" "));
+			assert.match(stdout.text, /usage: osstrich <command>/, argv.join(" "));
+			assert.equal(stderr.text, "", argv.join(" "));
+			assert.equal(calls.runAgentStage.length, 0, argv.join(" "));
+			assert.equal(calls.inventory, 0, argv.join(" "));
+		}
+	});
+}
+
+test("scrub --text=<body> scans a body that starts with a dash, with no usage error", async () => {
+	const runsDir = mkdtempSync(join(tmpdir(), "osstrich-cli-scrub-dash-"));
+	const { deps, stdout } = makeScrubDeps(runsDir);
+	const code = await main(["scrub", "--text=- this body names SECRETNAME"], deps);
+	assert.equal(code, 1);
+	assert.ok(stdout.lines.some((l) => l.includes("1 finding")), JSON.stringify(stdout.lines));
+	assert.ok(stdout.lines.every((l) => !l.includes("usage: osstrich")), JSON.stringify(stdout.lines));
+});
+
 test("scrub: no term file prints a warning, a term file does not, and nothing to scan exits 2 with usage", async () => {
 	const runsDir = mkdtempSync(join(tmpdir(), "osstrich-cli-scrub-warn-"));
 	{
