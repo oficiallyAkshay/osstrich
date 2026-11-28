@@ -147,6 +147,18 @@ test('status --run <id> exits 2 when that run does not exist', async () => {
   assert.match(stderr.text, /no run exists/);
 });
 
+for (const flag of ['--bogus', '--help', '-h']) {
+  test(`status ${flag} prints the usage text and exits 2 instead of reading a run`, async () => {
+    const fs = createFakeFs({ '/home/tester/.osstrich/run-1/status.json': JSON.stringify({ phases: [{ stage: 'inventory', state: 'done', attempts: 1 }] }) });
+    const stdout = createSink();
+    const stderr = createSink();
+    const code = await statusRun([flag], baseDeps({ fs, stdout, stderr }));
+    assert.equal(code, 2);
+    assert.match(stderr.text, /usage: osstrich status \[--run <id>\]/);
+    assert.equal(stdout.text, '');
+  });
+}
+
 test('status: a status.json with no .phases field at all prints nothing, never throws', async () => {
   const fs = createFakeFs({ '/home/tester/.osstrich/run-1/status.json': JSON.stringify({ updatedAt: '2026-01-01T00:00:00.000Z' }) });
   const stdout = createSink();
