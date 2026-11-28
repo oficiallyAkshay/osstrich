@@ -39,6 +39,7 @@ import assert from "node:assert/strict";
 import { finishRun, openRun, writePartial } from "../lib/run.mjs";
 import { shortlistUpstream, deriveRepoStopwords } from "../lib/upstream.mjs";
 import { markPhase } from "../lib/status.mjs";
+import { runAgentStage } from "../lib/agent.mjs";
 import { main, defaultDeps } from "../lib/cli-core.mjs";
 import { createSink, createFakePrompts } from "./helpers/fake-io.mjs";
 
@@ -1313,6 +1314,100 @@ test("discover: headless — a failed build stage skips prs_opened without throw
 	ok("a failed build stage contributes 0 to prs_opened, never throws", record.prs_opened === 0, JSON.stringify(record));
 	ok("projects_inventoried falls back to 0 when inventory carries no .projects", record.projects_inventoried === 0, JSON.stringify(record));
 	ok("bottom_n falls back to 0 when rank carries no .bottom", record.bottom_n === 0, JSON.stringify(record));
+});
+
+// A build stage may already have pushed or commented upstream before it
+// failed, so the real runAgentStage must run it exactly once.
+function failingRealBuildStage(execCalls) {
+	return async (args) => {
+		if (args.stage === "verdict") {
+			writeFundedVerdict(args.runDir);
+			return { ok: true, exitCode: 0, logPath: join(args.runDir, "verdict.log") };
+		}
+		return runAgentStage({
+			...args,
+			exec: async () => {
+				execCalls.push(args.stage);
+				throw new Error("build agent exploded");
+			},
+		});
+	};
+}
+
+test("build: a failing build stage runs the agent once, never retried", async () => {
+	const runsDir = mkdtempSync(join(tmpdir(), "osstrich-cli-buildonce-"));
+	const execCalls = [];
+	const { deps } = makeCodePhaseDeps({ runsDir, overrides: { runAgentStage: failingRealBuildStage(execCalls) } });
+	const code = await main(["build", "acme/once#1"], deps);
+	ok("the failed build exits 2", code === 2);
+	const dir = join(runsDir, readdirSync(runsDir).find((d) => d.includes("acme-once-1")));
+	const phase = JSON.parse(readFileSync(join(dir, "status.json"), "utf8")).phases.find((p) => p.stage === "build-acme-once-1");
+	ok("the build phase records attempts 1", phase.attempts === 1, JSON.stringify(phase));
+	ok("the agent ran once", execCalls.length === 1, JSON.stringify(execCalls));
+});
+
+test("discover: a failing build stage runs the agent once, never retried", async () => {
+	const runsDir = mkdtempSync(join(tmpdir(), "osstrich-cli-discoverbuildonce-"));
+	const execCalls = [];
+	const { deps } = makeCodePhaseDeps({ runsDir, overrides: { runAgentStage: failingRealBuildStage(execCalls) } });
+	await main(["discover", "--slug", "buildonce", "--headless"], deps);
+	const dir = join(runsDir, readdirSync(runsDir).find((d) => d.includes("buildonce")));
+	const phase = JSON.parse(readFileSync(join(dir, "status.json"), "utf8")).phases.find((p) => p.stage === "build-alpha");
+	ok("the build phase records attempts 1", phase.attempts === 1, JSON.stringify(phase));
+	ok("the agent ran once", execCalls.length === 1, JSON.stringify(execCalls));
+});
+
+// Two funded rows marked done: alpha (first in verdict order and the
+// headless picker's best) has its build notes, beta has none.
+function writeDoneRowsOneWithoutNotes(dir) {
+	writeFundedVerdict(dir);
+	markPhase(dir, { stage: "build-alpha", state: "done" }, { fs: nodeFs });
+	markPhase(dir, { stage: "build-beta", state: "done" }, { fs: nodeFs });
+	writeFileSync(join(dir, "build-alpha.md"), "prs_opened: 1\n");
+}
+
+test("build: without a target, a row marked done with no build notes is offered again", async () => {
+	const runsDir = mkdtempSync(join(tmpdir(), "osstrich-cli-buildnonotes-"));
+	const { dir } = openRun({ runsDir, slug: "priordiscover", fs: nodeFs });
+	writeDoneRowsOneWithoutNotes(dir);
+	const { deps, calls } = makeCodePhaseDeps({ runsDir });
+	const code = await main(["build"], deps);
+	ok("the build exits 0", code === 0);
+	ok("only beta, the row without notes, is built", calls.runAgentStage.map((c) => c.stage).join(",") === "build-beta", JSON.stringify(calls.runAgentStage.map((c) => c.stage)));
+});
+
+test("discover --resume: a valid verdict.json skips the verdict stage, and only the row without build notes is built", async () => {
+	const runsDir = mkdtempSync(join(tmpdir(), "osstrich-cli-resumeverdict-"));
+	const { deps: firstDeps } = makeCodePhaseDeps({ runsDir });
+	await main(["discover", "--slug", "resumeverdict", "--table"], firstDeps);
+	const dir = join(runsDir, readdirSync(runsDir).find((d) => d.includes("resumeverdict")));
+	writeDoneRowsOneWithoutNotes(dir);
+
+	const { deps, calls, stdout } = makeCodePhaseDeps({ runsDir });
+	const code = await main(["discover", "--slug", "resumeverdict", "--resume", "--headless"], deps);
+	ok("the resumed discover exits 0", code === 0, deps.stderr.text);
+	ok("the verdict stage did not run again", !calls.runAgentStage.some((c) => c.stage === "verdict"), JSON.stringify(calls.runAgentStage.map((c) => c.stage)));
+	ok("a skip line accounts for the verdict", /osstrich verdict: skipped \(partial present\)/.test(stdout.text), stdout.text);
+	ok("only beta, the row without notes, is built", calls.runAgentStage.map((c) => c.stage).join(",") === "build-beta", JSON.stringify(calls.runAgentStage.map((c) => c.stage)));
+});
+
+test("discover --resume: a missing or invalid verdict.json runs the verdict stage again", async () => {
+	const runsDir = mkdtempSync(join(tmpdir(), "osstrich-cli-resumenoverdict-"));
+	const { deps: firstDeps } = makeCodePhaseDeps({ runsDir });
+	await main(["discover", "--slug", "resumenoverdict", "--table"], firstDeps);
+	const dir = join(runsDir, readdirSync(runsDir).find((d) => d.includes("resumenoverdict")));
+	const writeVerdictStage = async (args) => {
+		if (args.stage === "verdict") {writeFundedVerdict(args.runDir);}
+		return { ok: true, exitCode: 0, logPath: join(args.runDir, `${args.stage}.log`) };
+	};
+
+	for (const [label, setup] of [["missing", () => {}], ["invalid", () => writeFileSync(join(dir, "verdict.json"), JSON.stringify({}))]]) {
+		setup();
+		const { deps, calls } = makeCodePhaseDeps({ runsDir, overrides: { runAgentStage: writeVerdictStage } });
+		const code = await main(["discover", "--slug", "resumenoverdict", "--resume", "--headless"], deps);
+		ok(`a ${label} verdict.json still exits 0`, code === 0, deps.stderr.text);
+		ok(`a ${label} verdict.json runs the verdict stage`, calls.runAgentStage[0]?.stage === "verdict", JSON.stringify(calls.runAgentStage.map((c) => c.stage)));
+	}
 });
 
 test("discover --table: every optional summary field falls back to 0/{} when a phase returns a minimal shape", async () => {
